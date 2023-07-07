@@ -1,5 +1,5 @@
 # func2graph
 
 ```
-conda env create --name recoveredenv --file environment.yml
+conda env create --name func2graph --file environment.yml
 ```

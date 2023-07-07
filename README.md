@@ -7,6 +7,6 @@ conda env create --name func2graph --file environment.yml
 
 Install the func2graph package
 ```
-conda activate seq2exp
+conda activate func2graph
 pip install -e .
 ```

@@ -21,10 +21,10 @@ class data_simulator(Module):
         dt=0.001, 
         tau=0.025,
     ):
-        super(data_simulator, self).__init__()
-        self.n = Parameter(n)
-        self.dt = Parameter(dt)
-        self.tau = Parameter(tau)
+        super().__init__()
+        self.n = n
+        self.dt = dt
+        self.tau = tau
 
         self.W_ij = Parameter(torch.randn(n, n)) # W_ij initialization
 

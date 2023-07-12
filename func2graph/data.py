@@ -31,7 +31,7 @@ class data_simulator(Module):
 
         torch.manual_seed(random_seed)
 
-        self.W_ij = Parameter(torch.randn(neuron_num, neuron_num)) # W_ij initialization
+        self.W_ij = torch.randn(neuron_num, neuron_num) # W_ij initialization
 
         self.x_t = torch.randn(neuron_num)    # x_(t=0) initialization
 
@@ -52,12 +52,11 @@ def generate_simulation_data(
     batch_size = 32,
     num_workers: int = 6, 
     shuffle: bool = False,
+    split_ratio = 0.8,
 ) -> DataLoader:
     """
     Generate dataset.
     Return dataloaders and ground truth weight matrix.
-
-    Since this is an unsupervised learning problem, we don't need to split the dataset into train and val.
     """
 
     simulator = data_simulator(neuron_num=neuron_num, dt=dt, tau=tau)
@@ -77,6 +76,14 @@ def generate_simulation_data(
     print(data.shape)
 
     dataset = TensorDataset(data)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+    train_data_size = int(total_data_size * split_ratio)
+    train_dataset, val_dataset = random_split(
+        dataset,
+        [train_data_size, total_data_size - train_data_size],
+        generator=torch.Generator().manual_seed(random_seed),
+    )
 
-    return dataloader, simulator.W_ij
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+
+    return train_dataloader, val_dataloader, simulator.W_ij

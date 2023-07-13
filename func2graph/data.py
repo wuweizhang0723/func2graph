@@ -23,11 +23,16 @@ class data_simulator(Module):
         dt=0.001, 
         tau=0.025,
         random_seed=42,
+        spike_neuron_num=2,
+        spike_input=1,
     ):
         super().__init__()
         self.neuron_num = neuron_num
         self.dt = dt
         self.tau = tau
+
+        self.spike_neuron_num = spike_neuron_num
+        self.spike_input = spike_input
 
         torch.manual_seed(random_seed)
 
@@ -36,9 +41,14 @@ class data_simulator(Module):
         self.x_t = torch.randn(neuron_num)    # x_(t=0) initialization
 
     def forward(self):
-        x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t)
+        # For each time step, randomly choose 2 neurons to add input=1
+        selected_neurons = np.random.choice(self.neuron_num, self.spike_neuron_num, replace=False)
+        I_t = torch.zeros(self.neuron_num)
+        I_t[selected_neurons] = self.spike_input
+
+        x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t)
         self.x_t = x_t_1
-        return x_t_1
+        return x_t_1   # this is a vector of size neuron_num
     
 
 

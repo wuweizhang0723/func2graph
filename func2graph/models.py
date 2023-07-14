@@ -8,6 +8,7 @@ import torch.optim as optim
 import pytorch_lightning as pl
 from func2graph.layers import (
     Residual,
+    Residual_For_Attention,
     Attention,
     PositionalEncoding,
 )
@@ -91,6 +92,7 @@ class Attention_Autoencoder(Base):
         h_layers_2=2,
         dropout=0.2,
         learning_rate=1e-4,
+        prediction_mode=False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -118,12 +120,17 @@ class Attention_Autoencoder(Base):
         for layer in range(attention_layers):
             self.attentionlayers.append(
                 nn.Sequential(
-                    Residual(
+                    Residual_For_Attention(
                         Attention(
                             dim=hidden_size_1,  # dimension of the last out channel
                             heads=heads,
+                            prediction_mode=prediction_mode,
                         ),
                     ),
+                )
+            )
+            self.attentionlayers.append(
+                nn.Sequential(
                     nn.LayerNorm(hidden_size_1),
                     Residual(
                         nn.Sequential(
@@ -162,12 +169,22 @@ class Attention_Autoencoder(Base):
         x = self.position_enc(x)
         x = self.layer_norm(x)
 
+        attention_results = []
         for layer in self.attentionlayers:
             x = layer(x)
+            if type(x) is tuple:
+                print('3')
+                x, attn = x
+                attention_results.append(attn)
 
         x = self.fc2(x)
         for layer in self.fclayers2:
             x = layer(x)
 
         x = self.out(x)
+
+        if self.hparams.prediction_mode == True:
+            return x, attention_results[0]
+        else:
+            return x
         

@@ -21,10 +21,11 @@ class data_simulator(Module):
         self, 
         neuron_num: int, 
         dt=0.001, 
-        tau=0.025,
+        tau=0.025,    # momentum of the system, the larger tau is the slower the system returns back to equilibrium
         random_seed=42,
         spike_neuron_num=2,
         spike_input=1,
+        total_time=30000,
     ):
         super().__init__()
         self.neuron_num = neuron_num
@@ -40,11 +41,13 @@ class data_simulator(Module):
 
         self.x_t = torch.randn(neuron_num)    # x_(t=0) initialization
 
-    def forward(self):
+        self.selected_neurons = torch.randint(low=0, high=neuron_num, size=(total_time, 2))
+
+    def forward(self, current_time_step):
         # For each time step, randomly choose 2 neurons to add input=1
-        selected_neurons = np.random.choice(self.neuron_num, self.spike_neuron_num, replace=False)
+        selected = self.selected_neurons[current_time_step]
         I_t = torch.zeros(self.neuron_num)
-        I_t[selected_neurons] = self.spike_input
+        I_t[selected] = self.spike_input
 
         x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t)
         self.x_t = x_t_1

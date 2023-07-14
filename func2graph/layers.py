@@ -22,6 +22,26 @@ class Residual(nn.Module):
 
 
 
+class Residual_For_Attention(nn.Module):
+    """residual block"""
+
+    def __init__(self, module, prediction_mode=False):
+        super().__init__()
+        self._module = module
+        self.prediction_mode = prediction_mode
+
+    def forward(self, x, *args, **kwargs):
+        module_out = self._module(x, *args, **kwargs)
+
+        if self.prediction_mode == True:
+            print('2')
+            module_out, attn = module_out
+            return x+ module_out, attn
+        else:
+            return x + module_out
+
+
+
 
 # Use sin-cos positional encoding from Attention is All You Need.
 # Positional Encoding is only added once.
@@ -55,6 +75,7 @@ class PositionalEncoding(nn.Module):
 
 
 
+
 # Attention Layer ------------------------------------------------------------------------
 #
 # Positional encoding is added to the input only once before attention layers
@@ -68,6 +89,7 @@ class Attention(nn.Module):
         dim_value=64,
         dropout=0.0,
         pos_dropout=0.0,
+        prediction_mode=False,
     ):
         super().__init__()
         self.scale = dim_key ** -0.5
@@ -90,6 +112,10 @@ class Attention(nn.Module):
 
         self.attn_dropout = nn.Dropout(dropout)
 
+        # prediction mode
+
+        self.prediction_mode = prediction_mode
+
     def forward(self, x):
         n, h, device = x.shape[-2], self.heads, x.device
 
@@ -102,9 +128,14 @@ class Attention(nn.Module):
         q = q * self.scale
 
         logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
-        attn = logits.softmax(dim=-1)  # softmax over the last dimension
-        attn = self.attn_dropout(attn)
+        attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
+        attn = self.attn_dropout(attn0)
 
         out = einsum("b h i j, b h j d -> b h i d", attn, v)
         out = rearrange(out, "b h n d -> b n (h d)")
-        return self.to_out(out)  # (b, n, dim)
+
+        if self.prediction_mode == True:
+            print('1')
+            return self.to_out(out), attn0
+        else:
+            return self.to_out(out)  # (b, n, dim)

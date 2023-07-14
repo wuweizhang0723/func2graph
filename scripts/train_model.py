@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 import argparse
 import torch
 import torch.nn.functional as F
@@ -30,21 +29,26 @@ if __name__ == "__main__":
     parser.add_argument("--neuron_num", help="the number of neurons", type=int, default=10)
     parser.add_argument("--dt", help="dt", default=0.001)
     parser.add_argument("--tau", help="tau", default=0.025)
-    parser.add_argument("--total_time", help="total time", default=100)
-    parser.add_argument("--total_data_size", help="total data size", default=1000)
+    parser.add_argument("--total_time", help="total time", default=30000)
+
+    parser.add_argument("--spike_neuron_num", default=2)
+    parser.add_argument("--spike_input", default=1)
+
+    parser.add_argument("--train_data_size", default=20000)
+    parser.add_argument("--window_size", default=200)
 
     parser.add_argument("--random_seed", help="random seed", default=42)
 
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
 
     # Model
-    parser.add_argument("--hidden_size_1", help="hidden size 1", default=256)
+    parser.add_argument("--hidden_size_1", help="hidden size 1", default=128)
     parser.add_argument("--h_layers_1", help="h layers 1", default=2)
 
     parser.add_argument("--heads", help="heads", default=1)
     parser.add_argument("--attention_layers", help="attention layers", default=1)
 
-    parser.add_argument("--hidden_size_2", help="hidden size 2", default=128)
+    parser.add_argument("--hidden_size_2", help="hidden size 2", default=258)
     parser.add_argument("--h_layers_2", help="h layers 2", default=2)
 
     parser.add_argument("--dropout", help="dropout", default=0.2)
@@ -63,7 +67,110 @@ if __name__ == "__main__":
     dt = float(args.dt)
     tau = float(args.tau)
     total_time = int(args.total_time)
-    total_data_size = int(args.total_data_size)
+
+    spike_neuron_num = int(args.spike_neuron_num)
+    spike_input = int(args.spike_input)
+
+    train_data_size = int(args.train_data_size)
+    window_size = int(args.window_size)
 
     random_seed = int(args.random_seed)
     batch_size = int(args.batch_size)
+
+    # Model
+    hidden_size_1 = int(args.hidden_size_1)
+    h_layers_1 = int(args.h_layers_1)
+
+    heads = int(args.heads)
+    attention_layers = int(args.attention_layers)
+
+    hidden_size_2 = int(args.hidden_size_2)
+    h_layers_2 = int(args.h_layers_2)
+
+    dropout = float(args.dropout)
+
+    learning_rate = float(args.learning_rate)
+
+
+
+    output_path = (
+        out_folder
+        + model_type
+        + "_"
+        + str(neuron_num)
+        + "_"
+        + str(dt)
+        + "_"
+        + str(tau)
+        + "_"
+        + str(total_time)
+        + "_"
+        + str(spike_neuron_num)
+        + "_"
+        + str(spike_input)
+        + "_"
+        + str(train_data_size)
+        + "_"
+        + str(window_size)
+        + "_"
+        + str(random_seed)
+        + "_"
+        + str(hidden_size_1)
+        + "_"
+        + str(h_layers_1)
+        + "_"
+        + str(heads)
+        + "_"
+        + str(attention_layers)
+        + "_"
+        + str(hidden_size_2)
+        + "_"
+        + str(h_layers_2)
+        + "_"
+        + str(learning_rate)
+    )
+
+    checkpoint_path = output_path
+    log_path = out_folder + "/log"
+
+    trainloader, validloader = data.generate_simulation_data(
+        neuron_num=neuron_num,
+        dt=dt,
+        tau=tau,
+        total_time=total_time,
+        spike_neuron_num=spike_neuron_num,
+        spike_input=spike_input,
+        train_data_size=train_data_size,
+        window_size=window_size,
+        random_seed=random_seed,
+        batch_size=batch_size,
+    )
+
+    if model_type == "Attention_Autoencoder":
+        single_model = models.Attention_Autoencoder(
+            hidden_size_1=hidden_size_1,
+            h_layers_1=h_layers_1,
+            heads=heads,
+            attention_layers=attention_layers,
+            hidden_size_2=hidden_size_2,
+            h_layers_2=h_layers_2,
+            dropout=dropout,
+            learning_rate=learning_rate,
+        )
+
+    es = EarlyStopping(monitor="val_loss", patience=15)
+    checkpoint_callback = ModelCheckpoint(
+        checkpoint_path, monitor="val_loss", mode="min", save_top_k=1
+    )
+    lr_monitor = LearningRateMonitor()
+    logger = TensorBoardLogger(log_path, name="model")
+    trainer = pl.Trainer(
+        devices=[0],
+        accelerator="gpu",
+        callbacks=[es, checkpoint_callback, lr_monitor],
+        benchmark=False,
+        profiler="simple",
+        logger=logger,
+    )
+
+    trainer.fit(single_model, trainloader, validloader)

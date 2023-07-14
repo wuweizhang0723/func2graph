@@ -84,11 +84,11 @@ class Attention_Autoencoder(Base):
         self,
         neuron_num=10,
         total_time=100,
-        hidden_size_1=256, # MLP_1
+        hidden_size_1=128, # MLP_1
         h_layers_1=2,
         heads=1,  # Attention
         attention_layers=1,
-        hidden_size_2=128, # MLP_2
+        hidden_size_2=256, # MLP_2
         h_layers_2=2,
         dropout=0.2,
         learning_rate=1e-4,

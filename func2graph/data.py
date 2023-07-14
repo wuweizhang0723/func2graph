@@ -59,9 +59,12 @@ def generate_simulation_data(
     neuron_num = 10,
     dt = 0.001,
     tau = 0.025,
+    total_time = 30000,
+    spike_neuron_num=2,
+    spike_input=1,
+    train_data_size = 20000,
+    window_size = 200,
     random_seed=42,
-    total_time = 100,
-    total_data_size = 1000,
     batch_size = 32,
     num_workers: int = 6, 
     shuffle: bool = False,
@@ -72,29 +75,64 @@ def generate_simulation_data(
     Return dataloaders and ground truth weight matrix.
     """
 
-    simulator = data_simulator(neuron_num=neuron_num, dt=dt, tau=tau)
+    torch.manual_seed(random_seed)
+
+    # Simulate 10 neuron data for 30,000 time steps
+
+    simulator = data_simulator(
+        neuron_num=neuron_num, 
+        dt=dt, 
+        tau=tau, 
+        random_seed=random_seed, 
+        spike_neuron_num=spike_neuron_num, 
+        spike_input=spike_input,
+        total_time=total_time,
+    )
 
     data = []
-    for i  in range(total_data_size):
-        one_sample = []
-        for t in range(total_time):
-            x_t = simulator.forward()
-            x_t = x_t.view(-1, 1)
-            one_sample.append(x_t)
-        one_sample = torch.cat(one_sample, dim=1).view(1, neuron_num, -1)
-        data.append(one_sample)
 
-    data = torch.cat(data, dim=0).float()
+    for t in range(total_time):
+        x_t = simulator.forward(t)
+        x_t = x_t.view(-1, 1)
+        data.append(x_t)
 
+    data = torch.cat(data, dim=1).float()
     print(data.shape)
 
-    dataset = TensorDataset(data)
-    train_data_size = int(total_data_size * split_ratio)
-    train_dataset, val_dataset = random_split(
-        dataset,
-        [train_data_size, total_data_size - train_data_size],
-        generator=torch.Generator().manual_seed(random_seed),
-    )
+
+    # Construct train/val data after simulation (time width=200)
+    #
+    # Train data: 
+    # - first 80% time steps (30,000 * 0.8 = 24,000)
+    # - randomly sample N indices as the start positions
+    #
+    # Val data: 
+    # - last 20% time steps (30,000 * 0.2 = 6,000)
+    # - N sliding windows
+
+    train_data_length = int(total_time * split_ratio)
+    train_data = data[:, :train_data_length]
+    val_data = data[:, train_data_length:]
+
+    val_data_size = val_data.shape[1] - window_size + 1
+    val_start_indices = torch.arange(val_data_size)
+
+    val_data_result = []
+    for i in range(val_data_size):
+        index = val_start_indices[i]
+        val_data_result.append(val_data[:, index:index+window_size].view(1, neuron_num, window_size))
+    val_data = torch.cat(val_data_result, dim=0)
+
+    train_start_indices = torch.randint(low=0, high=train_data_length-window_size+1, size=(train_data_size,))
+    train_datar_result = []
+    for i in range(train_data_size):
+        index = train_start_indices[i]
+        train_datar_result.append(train_data[:, index:index+window_size].view(1, neuron_num, window_size))
+    train_data = torch.cat(train_datar_result, dim=0)
+
+
+    train_dataset = TensorDataset(train_data)
+    val_dataset = TensorDataset(val_data)
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)

@@ -74,7 +74,9 @@ class Base(pl.LightningModule):
         self.log("test_loss", loss)
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        return torch.stack([self(batch), batch])
+        x = batch[0]   # batch_size * (neuron_num*time)
+        x_hat, attention = self(x)
+        return x_hat, x, attention
     
 
 
@@ -128,6 +130,7 @@ class Attention_Autoencoder(Base):
                             heads=heads,
                             prediction_mode=prediction_mode,
                         ),
+                        prediction_mode=prediction_mode,
                     ),
                 )
             )
@@ -168,8 +171,8 @@ class Attention_Autoencoder(Base):
         for layer in self.fclayers1:
             x = layer(x)
 
-        x = self.position_enc(x)
-        x = self.layer_norm(x)
+        # x = self.position_enc(x)
+        # x = self.layer_norm(x)
 
         attention_results = []
         for layer in self.attentionlayers:

@@ -38,7 +38,7 @@ class Residual_For_Attention(nn.Module):
         if self.prediction_mode == True:
             print('2')
             module_out, attn = module_out
-            return x+ module_out, attn
+            return (x + module_out), attn
         else:
             return x + module_out
 

@@ -9,6 +9,8 @@ import math
 from typing import Union
 
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 
 class Residual(nn.Module):
     """residual block"""
@@ -66,11 +68,11 @@ class PositionalEncoding(nn.Module):
         sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
         sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
 
-        return torch.FloatTensor(sinusoid_table).unsqueeze(0)
+        return torch.FloatTensor(sinusoid_table).unsqueeze(0).to(device)
 
     def forward(self, x):
         print(self.pos_table.shape) ################## TODO
-        return x + self.pos_table[:, : x.size(1)].clone().detach()
+        return x + self.pos_table[:, : x.size(1)]
 
 
 

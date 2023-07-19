@@ -28,11 +28,11 @@ if __name__ == "__main__":
     # Data
     parser.add_argument("--neuron_num", help="the number of neurons", type=int, default=10)
     parser.add_argument("--dt", help="dt", default=0.001)
-    parser.add_argument("--tau", help="tau", default=0.025)
+    parser.add_argument("--tau", help="tau", default=0.3)
     parser.add_argument("--total_time", help="total time", default=30000)
 
     parser.add_argument("--spike_neuron_num", default=2)
-    parser.add_argument("--spike_input", default=1)
+    parser.add_argument("--spike_input", default=5)
 
     parser.add_argument("--train_data_size", default=20000)
     parser.add_argument("--window_size", default=200)
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     checkpoint_path = output_path
     log_path = out_folder + "/log"
 
-    trainloader, validloader = data.generate_simulation_data(
+    trainloader, validloader, weight_matrix = data.generate_simulation_data(
         neuron_num=neuron_num,
         dt=dt,
         tau=tau,
@@ -148,6 +148,8 @@ if __name__ == "__main__":
 
     if model_type == "Attention_Autoencoder":
         single_model = models.Attention_Autoencoder(
+            neuron_num=neuron_num,
+            window_size=window_size,
             hidden_size_1=hidden_size_1,
             h_layers_1=h_layers_1,
             heads=heads,

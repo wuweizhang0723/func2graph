@@ -14,6 +14,7 @@ from func2graph.layers import (
 )
 
 
+
 class Base(pl.LightningModule):
     def __init__(self, scheduler="plateau") -> None:
         super().__init__()
@@ -50,24 +51,24 @@ class Base(pl.LightningModule):
         return [optimizer], [lr_scheduler]
     
     def training_step(self, batch, batch_idx):
-        x = batch   # batch_size * (neuron_num*time)
+        x = batch[0]   # batch_size * (neuron_num*time)
         x_hat = self(x)
-        loss = F.mse_loss(x_hat, x, reduction="mean")
+        loss = F.mse_loss(x_hat, x, reduction="sum")
 
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x = batch   # batch_size * (neuron_num*time)
+        x = batch[0]   # batch_size * (neuron_num*time)
         x_hat = self(x)
-        loss = F.mse_loss(x_hat, x, reduction="mean")
+        loss = F.mse_loss(x_hat, x, reduction="sum")
 
         self.log("val_loss", loss)
         result = torch.stack([x_hat.cpu().detach(), x.cpu().detach()], dim=1)
         return result
     
     def test_step(self, batch, batch_idx):
-        x = batch   # batch_size * (neuron_num*time)
+        x = batch[0]   # batch_size * (neuron_num*time)
         x_hat = self(x)
         loss = F.mse_loss(x_hat, x)
         self.log("test_loss", loss)
@@ -79,11 +80,12 @@ class Base(pl.LightningModule):
 
 
 
+
 class Attention_Autoencoder(Base):
     def __init__(
         self,
         neuron_num=10,
-        total_time=100,
+        window_size=200,
         hidden_size_1=128, # MLP_1
         h_layers_1=2,
         heads=1,  # Attention
@@ -100,7 +102,7 @@ class Attention_Autoencoder(Base):
         # MLP_1
 
         self.fc1 = nn.Sequential(
-            nn.Linear(total_time, hidden_size_1), nn.ReLU()
+            nn.Linear(window_size, hidden_size_1), nn.ReLU()
         )
 
         self.fclayers1 = nn.ModuleList(
@@ -158,7 +160,7 @@ class Attention_Autoencoder(Base):
             for layer in range(h_layers_2)
         )
 
-        self.out = nn.Linear(hidden_size_2, total_time)
+        self.out = nn.Linear(hidden_size_2, window_size)
 
 
     def forward(self, x): # x: batch_size * (neuron_num*time)

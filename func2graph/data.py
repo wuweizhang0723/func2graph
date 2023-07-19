@@ -25,6 +25,8 @@ class data_simulator(Module):
         random_seed=42,
         spike_neuron_num=2,
         spike_input=1,
+        weight_scale = 1,
+        init_scale = 1,
         total_time=30000,
     ):
         super().__init__()
@@ -37,9 +39,9 @@ class data_simulator(Module):
 
         torch.manual_seed(random_seed)
 
-        self.W_ij = torch.randn(neuron_num, neuron_num) # W_ij initialization
+        self.W_ij = weight_scale * torch.randn(neuron_num, neuron_num) # W_ij initialization
 
-        self.x_t = torch.randn(neuron_num)    # x_(t=0) initialization
+        self.x_t = init_scale * torch.randn(neuron_num)    # x_(t=0) initialization
 
         self.selected_neurons = torch.randint(low=0, high=neuron_num, size=(total_time, 2))
 
@@ -49,7 +51,7 @@ class data_simulator(Module):
         I_t = torch.zeros(self.neuron_num)
         I_t[selected] = self.spike_input
 
-        x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t)
+        x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
         self.x_t = x_t_1
         return x_t_1   # this is a vector of size neuron_num
     

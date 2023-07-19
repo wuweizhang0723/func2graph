@@ -31,6 +31,9 @@ if __name__ == "__main__":
     parser.add_argument("--tau", help="tau", default=0.3)
     parser.add_argument("--total_time", help="total time", default=30000)
 
+    parser.add_argument("--weight_scale", default=5)
+    parser.add_argument("--init_scale", default=0.1)
+
     parser.add_argument("--spike_neuron_num", default=2)
     parser.add_argument("--spike_input", default=5)
 
@@ -67,6 +70,9 @@ if __name__ == "__main__":
     dt = float(args.dt)
     tau = float(args.tau)
     total_time = int(args.total_time)
+
+    weight_scale = float(args.weight_scale)
+    init_scale = float(args.init_scale)
 
     spike_neuron_num = int(args.spike_neuron_num)
     spike_input = int(args.spike_input)
@@ -137,6 +143,8 @@ if __name__ == "__main__":
         neuron_num=neuron_num,
         dt=dt,
         tau=tau,
+        weight_scale=weight_scale,
+        init_scale=init_scale,
         total_time=total_time,
         spike_neuron_num=spike_neuron_num,
         spike_input=spike_input,

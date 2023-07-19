@@ -61,6 +61,8 @@ def generate_simulation_data(
     neuron_num = 10,
     dt = 0.001,
     tau = 0.025,
+    weight_scale = 1,
+    init_scale = 1,
     total_time = 30000,
     spike_neuron_num=2,
     spike_input=1,
@@ -88,6 +90,8 @@ def generate_simulation_data(
         random_seed=random_seed, 
         spike_neuron_num=spike_neuron_num, 
         spike_input=spike_input,
+        weight_scale=weight_scale,
+        init_scale=init_scale,
         total_time=total_time,
     )
 

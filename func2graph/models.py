@@ -53,7 +53,7 @@ class Base(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x = batch[0]   # batch_size * (neuron_num*time)
         x_hat = self(x)
-        loss = F.mse_loss(x_hat, x, reduction="sum")
+        loss = F.mse_loss(x_hat, x, reduction="mean")
 
         self.log("train_loss", loss)
         return loss
@@ -61,7 +61,7 @@ class Base(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x = batch[0]   # batch_size * (neuron_num*time)
         x_hat = self(x)
-        loss = F.mse_loss(x_hat, x, reduction="sum")
+        loss = F.mse_loss(x_hat, x, reduction="mean")
 
         self.log("val_loss", loss)
         result = torch.stack([x_hat.cpu().detach(), x.cpu().detach()], dim=1)

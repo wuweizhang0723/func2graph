@@ -2,7 +2,6 @@ import math
 import torch
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
-import torch.nn.init as init
 from torch.nn.modules import Module
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader, random_split
@@ -12,7 +11,7 @@ class data_simulator(Module):
     """
     data simulator for neuron activity
     Formula:
-        x_i(t+1) = (1 - dt/tau) * x_i(t) - dt/tau * tanh{sum_j[W_ij * x_j(t) + I_i(t)]}
+        x_i(t+1) = (1 - dt/tau) * x_i(t) - dt/tau * tanh{sum_j[W_ij * x_j(t) + I_i(t)]} + noise
 
         x_i(t=0) is sampled from standard normal distribution
         W_ij can be sampled from 1) standard normal distribution 2) cluster 3) nearest neighbor
@@ -22,12 +21,12 @@ class data_simulator(Module):
         neuron_num: int, 
         dt=0.001, 
         tau=0.025,    # momentum of the system, the larger tau is the slower the system returns back to equilibrium
-        random_seed=42,
         spike_neuron_num=2,
         spike_input=1,
         weight_scale = 1,
         init_scale = 1,
         total_time=30000,
+        random_seed=42,
     ):
         super().__init__()
         self.neuron_num = neuron_num
@@ -61,14 +60,14 @@ def generate_simulation_data(
     neuron_num = 10,
     dt = 0.001,
     tau = 0.025,
+    spike_neuron_num=2,
+    spike_input=1,
     weight_scale = 1,
     init_scale = 1,
     total_time = 30000,
-    spike_neuron_num=2,
-    spike_input=1,
+    random_seed=42,
     train_data_size = 20000,
     window_size = 200,
-    random_seed=42,
     batch_size = 32,
     num_workers: int = 6, 
     shuffle: bool = False,

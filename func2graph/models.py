@@ -171,8 +171,8 @@ class Attention_Autoencoder(Base):
         for layer in self.fclayers1:
             x = layer(x)
 
-        # x = self.position_enc(x)
-        # x = self.layer_norm(x)
+        x = self.position_enc(x)
+        x = self.layer_norm(x)
 
         attention_results = []
         for layer in self.attentionlayers:

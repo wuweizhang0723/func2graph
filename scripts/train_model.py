@@ -29,18 +29,17 @@ if __name__ == "__main__":
     parser.add_argument("--neuron_num", help="the number of neurons", type=int, default=10)
     parser.add_argument("--dt", help="dt", default=0.001)
     parser.add_argument("--tau", help="tau", default=0.3)
-    parser.add_argument("--total_time", help="total time", default=30000)
+    parser.add_argument("--spike_neuron_num", default=2)
+    parser.add_argument("--spike_input", default=5)
 
     parser.add_argument("--weight_scale", default=5)
     parser.add_argument("--init_scale", default=0.1)
 
-    parser.add_argument("--spike_neuron_num", default=2)
-    parser.add_argument("--spike_input", default=5)
+    parser.add_argument("--total_time", help="total time", default=30000)
+    parser.add_argument("--random_seed", help="random seed", default=42)
 
     parser.add_argument("--train_data_size", default=20000)
     parser.add_argument("--window_size", default=200)
-
-    parser.add_argument("--random_seed", help="random seed", default=42)
 
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
 
@@ -69,18 +68,18 @@ if __name__ == "__main__":
     neuron_num = int(args.neuron_num)
     dt = float(args.dt)
     tau = float(args.tau)
-    total_time = int(args.total_time)
+    spike_neuron_num = int(args.spike_neuron_num)
+    spike_input = int(args.spike_input)
 
     weight_scale = float(args.weight_scale)
     init_scale = float(args.init_scale)
 
-    spike_neuron_num = int(args.spike_neuron_num)
-    spike_input = int(args.spike_input)
+    total_time = int(args.total_time)
+    random_seed = int(args.random_seed)
 
     train_data_size = int(args.train_data_size)
     window_size = int(args.window_size)
 
-    random_seed = int(args.random_seed)
     batch_size = int(args.batch_size)
 
     # Model
@@ -109,17 +108,21 @@ if __name__ == "__main__":
         + "_"
         + str(tau)
         + "_"
-        + str(total_time)
-        + "_"
         + str(spike_neuron_num)
         + "_"
         + str(spike_input)
         + "_"
+        + str(weight_scale)
+        + "_"
+        + str(init_scale)
+        + "_"
+        + str(total_time)
+        + "_"
+        + str(random_seed)
+        + "_"
         + str(train_data_size)
         + "_"
         + str(window_size)
-        + "_"
-        + str(random_seed)
         + "_"
         + str(hidden_size_1)
         + "_"

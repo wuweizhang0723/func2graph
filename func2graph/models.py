@@ -97,7 +97,7 @@ class Attention_Autoencoder(Base):
         dropout=0.2,
         learning_rate=1e-4,
         prediction_mode=False,
-        pos_enc_type="lookup_table",  # "sin_cos" or "lookup_table"
+        pos_enc_type="sin_cos",  # "sin_cos" or "lookup_table"
     ):
         super().__init__()
         self.save_hyperparameters()

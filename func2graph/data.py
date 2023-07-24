@@ -125,14 +125,24 @@ def generate_simulation_data(
     val_data_result = []
     for i in range(val_data_size):
         index = val_start_indices[i]
-        val_data_result.append(val_data[:, index:index+window_size].view(1, neuron_num, window_size))
+        sample = val_data[:, index:index+window_size]
+        # Normalize each sample
+        mean = torch.mean(sample, dim=1).view(-1, 1)
+        std = torch.std(sample, dim=1).view(-1, 1)
+        sample = (sample - mean) / std
+        val_data_result.append(sample.view(1, neuron_num, window_size))
     val_data = torch.cat(val_data_result, dim=0)
 
     train_start_indices = torch.randint(low=0, high=train_data_length-window_size+1, size=(train_data_size,))
     train_datar_result = []
     for i in range(train_data_size):
         index = train_start_indices[i]
-        train_datar_result.append(train_data[:, index:index+window_size].view(1, neuron_num, window_size))
+        sample = train_data[:, index:index+window_size]
+        # Normalize each sample
+        mean = torch.mean(sample, dim=1).view(-1, 1)
+        std = torch.std(sample, dim=1).view(-1, 1)
+        sample = (sample - mean) / std
+        train_datar_result.append(sample.view(1, neuron_num, window_size))
     train_data = torch.cat(train_datar_result, dim=0)
 
 

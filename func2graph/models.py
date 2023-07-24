@@ -31,7 +31,7 @@ class Base(pl.LightningModule):
                 "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
                     # TODO: add an argument to control the patience
                     optimizer,
-                    patience=2,
+                    patience=3,
                 ),
                 "monitor": "val_loss",
             }
@@ -97,6 +97,7 @@ class Attention_Autoencoder(Base):
         dropout=0.2,
         learning_rate=1e-4,
         prediction_mode=False,
+        pos_enc_type="lookup_table",  # "sin_cos" or "lookup_table"
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -116,7 +117,13 @@ class Attention_Autoencoder(Base):
 
         # Attention
 
-        self.position_enc = PositionalEncoding(hidden_size_1, neuron_num=neuron_num)
+        self.pos_enc_type = pos_enc_type
+        if pos_enc_type == "sin_cos":
+            self.position_enc = PositionalEncoding(hidden_size_1, neuron_num=neuron_num)
+        elif pos_enc_type == "lookup_table":
+            self.embedding_table = nn.Embedding(
+                num_embeddings=neuron_num, embedding_dim=hidden_size_1
+            )
         self.layer_norm = nn.LayerNorm(hidden_size_1)
 
         self.attentionlayers = nn.ModuleList()
@@ -171,7 +178,13 @@ class Attention_Autoencoder(Base):
         for layer in self.fclayers1:
             x = layer(x)
 
-        x = self.position_enc(x)
+        if self.pos_enc_type == "sin_cos":
+            # Add positional encoding
+            x = self.position_enc(x)
+        elif self.pos_enc_type == "lookup_table":
+            # Add positional encoding
+            idx = torch.arange(x.shape[1]).to(x.device)
+            x = x + self.embedding_table(idx)
         x = self.layer_norm(x)
 
         attention_results = []

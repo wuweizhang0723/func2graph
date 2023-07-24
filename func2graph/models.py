@@ -97,7 +97,7 @@ class Attention_Autoencoder(Base):
         dropout=0.2,
         learning_rate=1e-4,
         prediction_mode=False,
-        pos_enc_type="sin_cos",  # "sin_cos" or "lookup_table"
+        pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -120,11 +120,12 @@ class Attention_Autoencoder(Base):
         self.pos_enc_type = pos_enc_type
         if pos_enc_type == "sin_cos":
             self.position_enc = PositionalEncoding(hidden_size_1, neuron_num=neuron_num)
+            self.layer_norm = nn.LayerNorm(hidden_size_1)
         elif pos_enc_type == "lookup_table":
             self.embedding_table = nn.Embedding(
                 num_embeddings=neuron_num, embedding_dim=hidden_size_1
             )
-        self.layer_norm = nn.LayerNorm(hidden_size_1)
+            self.layer_norm = nn.LayerNorm(hidden_size_1)
 
         self.attentionlayers = nn.ModuleList()
 
@@ -181,11 +182,12 @@ class Attention_Autoencoder(Base):
         if self.pos_enc_type == "sin_cos":
             # Add positional encoding
             x = self.position_enc(x)
+            x = self.layer_norm(x)
         elif self.pos_enc_type == "lookup_table":
             # Add positional encoding
             idx = torch.arange(x.shape[1]).to(x.device)
             x = x + self.embedding_table(idx)
-        x = self.layer_norm(x)
+            x = self.layer_norm(x)
 
         attention_results = []
         for layer in self.attentionlayers:

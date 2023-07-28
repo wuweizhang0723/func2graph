@@ -72,6 +72,8 @@ def generate_simulation_data(
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
+    data_type = "reconstruction",    # "reconstruction" or "prediction"
+    predict_window_size = 100,
 ) -> DataLoader:
     """
     Generate dataset.
@@ -146,8 +148,12 @@ def generate_simulation_data(
     train_data = torch.cat(train_datar_result, dim=0)
 
 
-    train_dataset = TensorDataset(train_data)
-    val_dataset = TensorDataset(val_data)
+    if data_type == "reconstruction":
+        train_dataset = TensorDataset(train_data)
+        val_dataset = TensorDataset(val_data)
+    elif data_type == "prediction":
+        train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
+        val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)

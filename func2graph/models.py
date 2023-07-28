@@ -51,32 +51,58 @@ class Base(pl.LightningModule):
         return [optimizer], [lr_scheduler]
     
     def training_step(self, batch, batch_idx):
-        x = batch[0]   # batch_size * (neuron_num*time)
-        x_hat = self(x)
-        loss = F.mse_loss(x_hat, x, reduction="mean")
+        if self.hparams.data_type == "reconstruction":
+            x = batch[0]   # batch_size * (neuron_num*time)
+            x_hat = self(x)
+            loss = F.mse_loss(x_hat, x, reduction="mean")
+        elif self.hparams.data_type == "prediction":
+            x, y = batch
+            y_hat = self(x)
+            loss = F.mse_loss(y_hat, y, reduction="mean")
 
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x = batch[0]   # batch_size * (neuron_num*time)
-        x_hat = self(x)
-        loss = F.mse_loss(x_hat, x, reduction="mean")
+        if self.hparams.data_type == "reconstruction":
+            x = batch[0]   # batch_size * (neuron_num*time)
+            x_hat = self(x)
+            loss = F.mse_loss(x_hat, x, reduction="mean")
+
+            result = torch.stack([x_hat.cpu().detach(), x.cpu().detach()], dim=1)
+        elif self.hparams.data_type == "prediction":
+            x, y = batch
+            y_hat = self(x)
+            loss = F.mse_loss(y_hat, y, reduction="mean")
+
+            result = torch.stack([y_hat.cpu().detach(), y.cpu().detach()], dim=1)
 
         self.log("val_loss", loss)
-        result = torch.stack([x_hat.cpu().detach(), x.cpu().detach()], dim=1)
         return result
     
     def test_step(self, batch, batch_idx):
-        x = batch[0]   # batch_size * (neuron_num*time)
-        x_hat = self(x)
-        loss = F.mse_loss(x_hat, x)
+        if self.hparams.data_type == "reconstruction":
+            x = batch[0]   # batch_size * (neuron_num*time)
+            x_hat = self(x)
+            loss = F.mse_loss(x_hat, x, reduction="mean")
+        elif self.hparams.data_type == "prediction":
+            x, y = batch
+            y_hat = self(x)
+            loss = F.mse_loss(y_hat, y, reduction="mean")
+        
         self.log("test_loss", loss)
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        x = batch[0]   # batch_size * (neuron_num*time)
-        x_hat, attention = self(x)
-        return x_hat, x, attention
+        if self.hparams.data_type == "reconstruction":
+            x = batch[0]   # batch_size * (neuron_num*time)
+            x_hat, attention = self(x)
+
+            return x_hat, x, attention
+        elif self.hparams.data_type == "prediction":
+            x, y = batch
+            y_hat, attention = self(x)
+
+            return y_hat, y, attention
     
 
 
@@ -98,15 +124,22 @@ class Attention_Autoencoder(Base):
         learning_rate=1e-4,
         prediction_mode=False,
         pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
+        data_type = "reconstruction",    # "reconstruction" or "prediction"
+        predict_window_size = 100,
     ):
         super().__init__()
         self.save_hyperparameters()
 
         # MLP_1
 
-        self.fc1 = nn.Sequential(
-            nn.Linear(window_size, hidden_size_1), nn.ReLU()
-        )
+        if data_type == "reconstruction":
+            self.fc1 = nn.Sequential(
+                nn.Linear(window_size, hidden_size_1), nn.ReLU()
+            )
+        elif data_type == "prediction":
+            self.fc1 = nn.Sequential(
+                nn.Linear(window_size - predict_window_size, hidden_size_1), nn.ReLU()
+            )
 
         self.fclayers1 = nn.ModuleList(
             nn.Sequential(
@@ -171,7 +204,10 @@ class Attention_Autoencoder(Base):
             for layer in range(h_layers_2)
         )
 
-        self.out = nn.Linear(hidden_size_2, window_size)
+        if data_type == "reconstruction":
+            self.out = nn.Linear(hidden_size_2, window_size)
+        elif data_type == "prediction":
+            self.out = nn.Linear(hidden_size_2, predict_window_size)
 
 
     def forward(self, x): # x: batch_size * (neuron_num*time)

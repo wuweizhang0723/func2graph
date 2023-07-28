@@ -43,6 +43,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
 
+    parser.add_argument("--data_type", default="reconstruction")
+    parser.add_argument("--predict_window_size", default=100)
+
     # Model
     parser.add_argument("--hidden_size_1", help="hidden size 1", default=128)
     parser.add_argument("--h_layers_1", help="h layers 1", default=2)
@@ -81,6 +84,9 @@ if __name__ == "__main__":
     window_size = int(args.window_size)
 
     batch_size = int(args.batch_size)
+
+    data_type = args.data_type
+    predict_window_size = int(args.predict_window_size)
 
     # Model
     hidden_size_1 = int(args.hidden_size_1)
@@ -124,6 +130,10 @@ if __name__ == "__main__":
         + "_"
         + str(window_size)
         + "_"
+        + data_type
+        + "_"
+        + str(predict_window_size)
+        + "_"
         + str(hidden_size_1)
         + "_"
         + str(h_layers_1)
@@ -155,6 +165,8 @@ if __name__ == "__main__":
         window_size=window_size,
         random_seed=random_seed,
         batch_size=batch_size,
+        data_type=data_type,
+        predict_window_size=predict_window_size,
     )
 
     if model_type == "Attention_Autoencoder":
@@ -169,6 +181,8 @@ if __name__ == "__main__":
             h_layers_2=h_layers_2,
             dropout=dropout,
             learning_rate=learning_rate,
+            data_type=data_type,
+            predict_window_size=predict_window_size,
         )
 
     es = EarlyStopping(monitor="val_loss", patience=15)

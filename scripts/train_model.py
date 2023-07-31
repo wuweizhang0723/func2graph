@@ -38,6 +38,8 @@ if __name__ == "__main__":
     parser.add_argument("--total_time", help="total time", default=30000)
     parser.add_argument("--random_seed", help="random seed", default=42)
 
+    parser.add_argument("--weight_type", default="random")
+
     parser.add_argument("--train_data_size", default=20000)
     parser.add_argument("--window_size", default=200)
 
@@ -79,6 +81,8 @@ if __name__ == "__main__":
 
     total_time = int(args.total_time)
     random_seed = int(args.random_seed)
+
+    weight_type = args.weight_type
 
     train_data_size = int(args.train_data_size)
     window_size = int(args.window_size)
@@ -126,6 +130,8 @@ if __name__ == "__main__":
         + "_"
         + str(random_seed)
         + "_"
+        + weight_type
+        + "_"
         + str(train_data_size)
         + "_"
         + str(window_size)
@@ -156,14 +162,15 @@ if __name__ == "__main__":
         neuron_num=neuron_num,
         dt=dt,
         tau=tau,
+        spike_neuron_num=spike_neuron_num,
+        spike_input=spike_input,
         weight_scale=weight_scale,
         init_scale=init_scale,
         total_time=total_time,
-        spike_neuron_num=spike_neuron_num,
-        spike_input=spike_input,
+        random_seed=random_seed,
+        weight_type=weight_type,
         train_data_size=train_data_size,
         window_size=window_size,
-        random_seed=random_seed,
         batch_size=batch_size,
         data_type=data_type,
         predict_window_size=predict_window_size,

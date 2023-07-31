@@ -66,4 +66,7 @@ def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
         mean = torch.mean(weight_matrix)
         std = torch.std(weight_matrix)
         weight_matrix = (weight_matrix - mean) / std
+
+        # Contol sparsity
+        weight_matrix[weight_matrix < 0.1] = 0
     return weight_matrix

@@ -6,6 +6,8 @@ from torch.nn.modules import Module
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader, random_split
 
+from func2graph import tools
+
 
 class data_simulator(Module):
     """
@@ -27,6 +29,7 @@ class data_simulator(Module):
         init_scale = 1,
         total_time=30000,
         random_seed=42,
+        weight_type="random",    # "random" or "cluster" or "nearest_neighbor"
     ):
         super().__init__()
         self.neuron_num = neuron_num
@@ -38,7 +41,10 @@ class data_simulator(Module):
 
         torch.manual_seed(random_seed)
 
-        self.W_ij = weight_scale * torch.randn(neuron_num, neuron_num) # W_ij initialization
+        if weight_type == "random":
+            self.W_ij = weight_scale * torch.randn(neuron_num, neuron_num) # W_ij initialization
+        else:
+            self.W_ij = tools.construct_weight_matrix(neuron_num, type=weight_type)
 
         self.x_t = init_scale * torch.randn(neuron_num)    # x_(t=0) initialization
 
@@ -66,6 +72,7 @@ def generate_simulation_data(
     init_scale = 1,
     total_time = 30000,
     random_seed=42,
+    weight_type="random",
     train_data_size = 20000,
     window_size = 200,
     batch_size = 32,
@@ -87,13 +94,14 @@ def generate_simulation_data(
     simulator = data_simulator(
         neuron_num=neuron_num, 
         dt=dt, 
-        tau=tau, 
-        random_seed=random_seed, 
+        tau=tau,  
         spike_neuron_num=spike_neuron_num, 
         spike_input=spike_input,
         weight_scale=weight_scale,
         init_scale=init_scale,
         total_time=total_time,
+        random_seed=random_seed,
+        weight_type=weight_type
     )
 
     data = []

@@ -43,3 +43,27 @@ def get_avg_attention(dataloader, predict_mode_model, checkpoint_path, neuron_nu
     # # get average attention across 
     avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
     return predictions, ground_truths, avg_attention, attentions
+
+
+
+
+# Construct weight matrix -------------------------------
+def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
+    if type=='nearest_neighbor':
+        # random sample neuron_num points on 1-D line
+        # then construct weight matrix based on the distance between each pair of points
+        positions = torch.rand(neuron_num)
+        distances = torch.zeros(neuron_num, neuron_num)
+        weight_matrix = torch.zeros(neuron_num, neuron_num)
+        for i in range(neuron_num):
+            for j in range(i+1, neuron_num):
+                distances[i, j] = torch.abs(positions[i] - positions[j])
+                distances[j, i] = distances[i, j]
+                weight_matrix[i, j] = 1 / distances[i, j]
+                weight_matrix[j, i] = weight_matrix[i, j]
+        
+        # normalize weight matrix
+        mean = torch.mean(weight_matrix)
+        std = torch.std(weight_matrix)
+        weight_matrix = (weight_matrix - mean) / std
+    return weight_matrix

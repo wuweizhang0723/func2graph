@@ -62,6 +62,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--learning_rate", help="learning rate", default=1e-4)
 
+    parser.add_argument("--pos_enc_type", default="none")
+
 
     args = parser.parse_args()
 
@@ -105,6 +107,8 @@ if __name__ == "__main__":
     dropout = float(args.dropout)
 
     learning_rate = float(args.learning_rate)
+
+    pos_enc_type = args.pos_enc_type
 
 
 
@@ -153,6 +157,8 @@ if __name__ == "__main__":
         + str(h_layers_2)
         + "_"
         + str(learning_rate)
+        + "_"
+        + pos_enc_type
     )
 
     checkpoint_path = output_path
@@ -188,6 +194,7 @@ if __name__ == "__main__":
             h_layers_2=h_layers_2,
             dropout=dropout,
             learning_rate=learning_rate,
+            pos_enc_type=pos_enc_type,
             data_type=data_type,
             predict_window_size=predict_window_size,
         )

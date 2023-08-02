@@ -114,6 +114,11 @@ def generate_simulation_data(
     data = torch.cat(data, dim=1).float()
     print(data.shape)
 
+    # Normalize on entire dataset
+    mean = torch.mean(data, dim=1).view(-1, 1)
+    std = torch.std(data, dim=1).view(-1, 1)
+    data = (data - mean) / std
+
 
     # Construct train/val data after simulation (time width=200)
     #
@@ -136,10 +141,6 @@ def generate_simulation_data(
     for i in range(val_data_size):
         index = val_start_indices[i]
         sample = val_data[:, index:index+window_size]
-        # Normalize each sample
-        mean = torch.mean(sample, dim=1).view(-1, 1)
-        std = torch.std(sample, dim=1).view(-1, 1)
-        sample = (sample - mean) / std
         val_data_result.append(sample.view(1, neuron_num, window_size))
     val_data = torch.cat(val_data_result, dim=0)
 
@@ -148,10 +149,6 @@ def generate_simulation_data(
     for i in range(train_data_size):
         index = train_start_indices[i]
         sample = train_data[:, index:index+window_size]
-        # Normalize each sample
-        mean = torch.mean(sample, dim=1).view(-1, 1)
-        std = torch.std(sample, dim=1).view(-1, 1)
-        sample = (sample - mean) / std
         train_datar_result.append(sample.view(1, neuron_num, window_size))
     train_data = torch.cat(train_datar_result, dim=0)
 

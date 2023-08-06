@@ -45,8 +45,8 @@ class Residual_For_Attention(nn.Module):
 
 
 
-# Use sin-cos positional encoding from Attention is All You Need.
-# Positional Encoding is only added once.
+# Use sinudial positional encoding from Attention is All You Need.
+# Positional Encoding is only added once in the model before attention layer.
 class PositionalEncoding(nn.Module):
     def __init__(self, encoding_dim, neuron_num=10):
         super(PositionalEncoding, self).__init__()
@@ -80,7 +80,6 @@ class PositionalEncoding(nn.Module):
 
 # Attention Layer ------------------------------------------------------------------------
 #
-# Positional encoding is added to the input only once before attention layers
 class Attention(nn.Module):
     def __init__(
         self,

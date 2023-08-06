@@ -48,6 +48,8 @@ def get_avg_attention(dataloader, predict_mode_model, checkpoint_path, neuron_nu
 
 
 # Construct weight matrix -------------------------------
+# This is used in data generation procedure to decide what type of weight matrix to use
+#
 def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
     if type=='nearest_neighbor':
         # random sample neuron_num points on 1-D line
@@ -68,5 +70,5 @@ def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
         weight_matrix = (weight_matrix - mean) / std
 
         # Contol sparsity
-        weight_matrix[weight_matrix < 0.1] = 0
+        # weight_matrix[weight_matrix < 0.1] = 0
     return weight_matrix

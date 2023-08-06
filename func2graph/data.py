@@ -56,7 +56,8 @@ class data_simulator(Module):
         I_t = torch.zeros(self.neuron_num)
         I_t[selected] = self.spike_input
 
-        x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
+        # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
+        x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
         self.x_t = x_t_1
         return x_t_1   # this is a vector of size neuron_num
     

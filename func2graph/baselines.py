@@ -88,7 +88,8 @@ class Base_2(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
 
-        return y_hat, y
+        return torch.stack([y_hat.cpu().detach(), y.cpu().detach()], dim=1)
+
     
 
 

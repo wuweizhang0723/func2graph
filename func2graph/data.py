@@ -81,7 +81,7 @@ def generate_simulation_data(
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
-    data_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline"_2
+    data_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline_2"
     predict_window_size = 100,
 ) -> DataLoader:
     """

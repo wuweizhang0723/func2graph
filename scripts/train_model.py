@@ -12,8 +12,7 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from func2graph import data
-from func2graph import models
+from func2graph import data, models, baselines
 
 
 
@@ -204,7 +203,7 @@ if __name__ == "__main__":
             predict_window_size=predict_window_size,
         )
     elif model_type == "Baseline_2":
-        single_model = models.Baseline_2(
+        single_model = baselines.Baseline_2(
             neuron_num=neuron_num,
             learning_rate=learning_rate,
             simulated_network_type=1,

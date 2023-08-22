@@ -20,6 +20,8 @@ from func2graph import models
 if __name__ == "__main__":
     # Parse arguments add all hyperparameters to the parser
     parser = argparse.ArgumentParser(description="Model Hyperparameters")
+
+    # "Attention_Autoencoder" or "Baseline_2"
     parser.add_argument(
         "--model_type", type=str, default="Attention_Autoencoder", help="Model type"
     )
@@ -32,8 +34,8 @@ if __name__ == "__main__":
     parser.add_argument("--spike_neuron_num", default=2)
     parser.add_argument("--spike_input", default=5)
 
-    parser.add_argument("--weight_scale", default=5)
-    parser.add_argument("--init_scale", default=0.1)
+    parser.add_argument("--weight_scale", default=1)
+    parser.add_argument("--init_scale", default=1)
 
     parser.add_argument("--total_time", help="total time", default=30000)
     parser.add_argument("--random_seed", help="random seed", default=42)
@@ -45,7 +47,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
 
-    parser.add_argument("--data_type", default="reconstruction")
+    parser.add_argument("--data_type", default="reconstruction")  # "reconstruction" or "prediction" or "baseline"_2
     parser.add_argument("--predict_window_size", default=100)
 
     # Model
@@ -63,6 +65,9 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", help="learning rate", default=1e-4)
 
     parser.add_argument("--pos_enc_type", default="none")
+
+    # Baseline_2
+
 
 
     args = parser.parse_args()
@@ -197,6 +202,12 @@ if __name__ == "__main__":
             pos_enc_type=pos_enc_type,
             data_type=data_type,
             predict_window_size=predict_window_size,
+        )
+    elif model_type == "Baseline_2":
+        single_model = models.Baseline_2(
+            neuron_num=neuron_num,
+            learning_rate=learning_rate,
+            simulated_network_type=1,
         )
 
     es = EarlyStopping(monitor="val_loss", patience=15)

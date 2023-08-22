@@ -4,6 +4,7 @@ import pandas as pd
 from torch import nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+from scipy import stats, signal
 
 
 
@@ -72,3 +73,17 @@ def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
         # Contol sparsity
         # weight_matrix[weight_matrix < 0.1] = 0
     return weight_matrix
+
+
+
+
+def get_activity_correlation(activity, type="pearson", neuron_num=10):
+    matrix = np.zeros((neuron_num, neuron_num))
+    for i in range(neuron_num):
+        activity_i = activity[i]
+        for j in range(i+1, neuron_num):
+            activity_j = activity[j]
+            corr = stats.pearsonr(activity_i, activity_j).statistic
+            matrix[i][j] = corr
+            matrix[j][i] = corr
+    return matrix

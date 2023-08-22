@@ -57,7 +57,8 @@ class data_simulator(Module):
         I_t[selected] = self.spike_input
 
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
-        x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
+        # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
+        x_t_1 = self.W_ij @ F.tanh(self.x_t)
         self.x_t = x_t_1
         return x_t_1   # this is a vector of size neuron_num
     
@@ -80,7 +81,7 @@ def generate_simulation_data(
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
-    data_type = "reconstruction",    # "reconstruction" or "prediction"
+    data_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline"_2
     predict_window_size = 100,
 ) -> DataLoader:
     """
@@ -135,23 +136,32 @@ def generate_simulation_data(
     train_data = data[:, :train_data_length]
     val_data = data[:, train_data_length:]
 
-    val_data_size = val_data.shape[1] - window_size + 1
-    val_start_indices = torch.arange(val_data_size)
+    if data_type == "reconstruction" or data_type == "prediction":
+        val_data_size = val_data.shape[1] - window_size + 1
+        val_start_indices = torch.arange(val_data_size)
 
-    val_data_result = []
-    for i in range(val_data_size):
-        index = val_start_indices[i]
-        sample = val_data[:, index:index+window_size]
-        val_data_result.append(sample.view(1, neuron_num, window_size))
-    val_data = torch.cat(val_data_result, dim=0)
+        val_data_result = []
+        for i in range(val_data_size):
+            index = val_start_indices[i]
+            sample = val_data[:, index:index+window_size]
+            val_data_result.append(sample.view(1, neuron_num, window_size))
+        val_data = torch.cat(val_data_result, dim=0)
 
-    train_start_indices = torch.randint(low=0, high=train_data_length-window_size+1, size=(train_data_size,))
-    train_datar_result = []
-    for i in range(train_data_size):
-        index = train_start_indices[i]
-        sample = train_data[:, index:index+window_size]
-        train_datar_result.append(sample.view(1, neuron_num, window_size))
-    train_data = torch.cat(train_datar_result, dim=0)
+        train_start_indices = torch.randint(low=0, high=train_data_length-window_size+1, size=(train_data_size,))
+        train_datar_result = []
+        for i in range(train_data_size):
+            index = train_start_indices[i]
+            sample = train_data[:, index:index+window_size]
+            train_datar_result.append(sample.view(1, neuron_num, window_size))
+        train_data = torch.cat(train_datar_result, dim=0)
+
+    elif data_type == "baseline_2":  
+        # Baseline_2 takes in activity from one previous time step to predict for the next time step
+        train_x = train_data[:, :-1].transpose(0, 1)
+        train_y = train_data[:, 1:].transpose(0, 1)
+
+        val_x = val_data[:, :-1].transpose(0, 1)
+        val_y = val_data[:, 1:].transpose(0, 1)
 
 
     if data_type == "reconstruction":
@@ -160,6 +170,9 @@ def generate_simulation_data(
     elif data_type == "prediction":
         train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
         val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
+    elif data_type == "baseline_2":
+        train_dataset = TensorDataset(train_x, train_y)
+        val_dataset = TensorDataset(val_x, val_y)
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)

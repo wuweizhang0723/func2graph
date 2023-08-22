@@ -16,6 +16,28 @@ from func2graph.layers import (
 
 
 ##################
+# Baseline_1:
+# - Pearson correlation
+# - Cross correlation
+##################
+
+
+
+def get_activity_correlation(activity, type="pearson", neuron_num=10):
+    matrix = np.zeros((neuron_num, neuron_num))
+    for i in range(neuron_num):
+        activity_i = activity[i]
+        for j in range(i+1, neuron_num):
+            activity_j = activity[j]
+            corr = stats.pearsonr(activity_i, activity_j).statistic
+            matrix[i][j] = corr
+            matrix[j][i] = corr
+    return matrix
+
+
+
+
+##################
 # Baseline_2:
 # - Base_2 is the base for Baseline_2
 # - Baseline_2 takes in activity from one previous time step to predict for the next time step
@@ -88,7 +110,7 @@ class Base_2(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
 
-        return torch.stack([y_hat.cpu().detach(), y.cpu().detach()], dim=1)
+        return torch.cat((y_hat.cpu().detach(), y.cpu().detach()), dim=1)
 
     
 

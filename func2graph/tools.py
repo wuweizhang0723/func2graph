@@ -76,14 +76,3 @@ def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
 
 
 
-
-def get_activity_correlation(activity, type="pearson", neuron_num=10):
-    matrix = np.zeros((neuron_num, neuron_num))
-    for i in range(neuron_num):
-        activity_i = activity[i]
-        for j in range(i+1, neuron_num):
-            activity_j = activity[j]
-            corr = stats.pearsonr(activity_i, activity_j).statistic
-            matrix[i][j] = corr
-            matrix[j][i] = corr
-    return matrix

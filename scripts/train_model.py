@@ -39,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--total_time", help="total time", default=30000)
     parser.add_argument("--random_seed", help="random seed", default=42)
 
-    parser.add_argument("--weight_type", default="random")
+    parser.add_argument("--weight_type", default="random")    # "random"
 
     parser.add_argument("--train_data_size", default=20000)
     parser.add_argument("--window_size", default=200)
@@ -209,7 +209,7 @@ if __name__ == "__main__":
             simulated_network_type=1,
         )
 
-    es = EarlyStopping(monitor="val_loss", patience=15)
+    es = EarlyStopping(monitor="val_loss", patience=1)  ###########
     checkpoint_callback = ModelCheckpoint(
         checkpoint_path, monitor="val_loss", mode="min", save_top_k=1
     )
@@ -225,3 +225,45 @@ if __name__ == "__main__":
     )
 
     trainer.fit(single_model, trainloader, validloader)
+
+
+
+
+    # Add evaluation after training：
+    # 1.ground-truth W plot 
+    # 2.estimated W plot (train & val)
+    # 3.validation loss 
+    # 4.activity prediction plot
+
+    plt.imshow(weight_matrix.detach().numpy())
+    plt.colorbar()
+    plt.title("Ground-truth W")
+    plt.savefig(output_path + "/Ground_truth_W.png")
+
+
+    train_results = trainer.predict(single_model, dataloaders=[trainloader],)
+
+    predictions = []
+    ground_truths = []
+    attentions = []
+    for i in range(len(train_results)):
+        x_hat = train_results[i][0]    # batch_size * (neuron_num*time)
+        x = train_results[i][1]
+        attention = train_results[i][2]
+        attention = attention.view(-1, neuron_num, neuron_num)
+
+        predictions.append(x_hat)
+        ground_truths.append(x)
+        attentions.append(attention)
+    
+    predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
+    ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
+    attentions = torch.cat(attentions, dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+    
+    # # get average attention across 
+    avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
+
+    plt.imshow(avg_attention.detach().numpy())
+    plt.colorbar()
+    plt.title("Estimated W")
+    plt.savefig(output_path + "/Estimated_W.png")

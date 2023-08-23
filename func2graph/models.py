@@ -130,6 +130,8 @@ class Attention_Autoencoder(Base):
         super().__init__()
         self.save_hyperparameters()
 
+        self.prediction_mode = prediction_mode
+
         # MLP_1
 
         if data_type == "reconstruction":
@@ -169,9 +171,9 @@ class Attention_Autoencoder(Base):
                         Attention(
                             dim=hidden_size_1,  # dimension of the last out channel
                             heads=heads,
-                            prediction_mode=prediction_mode,
+                            prediction_mode=self.prediction_mode,
                         ),
-                        prediction_mode=prediction_mode,
+                        prediction_mode=self.prediction_mode,
                     ),
                 )
             )

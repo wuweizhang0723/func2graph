@@ -11,6 +11,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
+from os import listdir
 
 from func2graph import data, models, baselines
 
@@ -209,7 +210,7 @@ if __name__ == "__main__":
             simulated_network_type=1,
         )
 
-    es = EarlyStopping(monitor="val_loss", patience=1)  ###########
+    es = EarlyStopping(monitor="val_loss", patience=12)  ###########
     checkpoint_callback = ModelCheckpoint(
         checkpoint_path, monitor="val_loss", mode="min", save_top_k=1
     )
@@ -235,35 +236,54 @@ if __name__ == "__main__":
     # 3.validation loss 
     # 4.activity prediction plot
 
-    plt.imshow(weight_matrix.detach().numpy())
-    plt.colorbar()
-    plt.title("Ground-truth W")
-    plt.savefig(output_path + "/Ground_truth_W.png")
+    if model_type == "Attention_Autoencoder":
+        predict_mode_model = models.Attention_Autoencoder(
+            neuron_num=neuron_num,
+            window_size=window_size,
+            hidden_size_1=hidden_size_1,
+            h_layers_1=h_layers_1,
+            heads=heads,
+            attention_layers=attention_layers,
+            hidden_size_2=hidden_size_2,
+            h_layers_2=h_layers_2,
+            dropout=dropout,
+            learning_rate=learning_rate,
+            pos_enc_type=pos_enc_type,
+            data_type=data_type,
+            predict_window_size=predict_window_size,
+            prediction_mode=True,
+        )
+        model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
 
+        train_results = trainer.predict(predict_mode_model, dataloaders=[trainloader], ckpt_path=model_checkpoint_path)
 
-    train_results = trainer.predict(single_model, dataloaders=[trainloader],)
+        predictions = []
+        ground_truths = []
+        attentions = []
+        for i in range(len(train_results)):
+            x_hat = train_results[i][0]    # batch_size * (neuron_num*time)
+            x = train_results[i][1]
+            attention = train_results[i][2]
+            attention = attention.view(-1, neuron_num, neuron_num)
 
-    predictions = []
-    ground_truths = []
-    attentions = []
-    for i in range(len(train_results)):
-        x_hat = train_results[i][0]    # batch_size * (neuron_num*time)
-        x = train_results[i][1]
-        attention = train_results[i][2]
-        attention = attention.view(-1, neuron_num, neuron_num)
+            predictions.append(x_hat)
+            ground_truths.append(x)
+            attentions.append(attention)
+        
+        predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
+        ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
+        attentions = torch.cat(attentions, dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+        
+        # # get average attention across 
+        avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
 
-        predictions.append(x_hat)
-        ground_truths.append(x)
-        attentions.append(attention)
-    
-    predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
-    ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
-    attentions = torch.cat(attentions, dim=0).cpu().numpy()    # N * neuron_num * neuron_num
-    
-    # # get average attention across 
-    avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
+        plt.imshow(avg_attention)
+        plt.colorbar()
+        plt.title("Estimated W")
+        plt.savefig(output_path + "/Estimated_W.png")
+        plt.close()
 
-    plt.imshow(avg_attention.detach().numpy())
-    plt.colorbar()
-    plt.title("Estimated W")
-    plt.savefig(output_path + "/Estimated_W.png")
+        plt.imshow(weight_matrix.detach().numpy())
+        plt.colorbar()
+        plt.title("Ground-truth W")
+        plt.savefig(output_path + "/Ground_truth_W.png")

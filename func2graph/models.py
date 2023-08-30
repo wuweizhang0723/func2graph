@@ -1,6 +1,7 @@
 from math import ceil
 import numpy as np
 from scipy import stats
+import einops
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -51,11 +52,11 @@ class Base(pl.LightningModule):
         return [optimizer], [lr_scheduler]
     
     def training_step(self, batch, batch_idx):
-        if self.hparams.data_type == "reconstruction":
+        if self.hparams.task_type == "reconstruction":
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat = self(x)
             loss = F.mse_loss(x_hat, x, reduction="mean")
-        elif self.hparams.data_type == "prediction":
+        elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat = self(x)
             loss = F.mse_loss(y_hat, y, reduction="mean")
@@ -64,13 +65,13 @@ class Base(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        if self.hparams.data_type == "reconstruction":
+        if self.hparams.task_type == "reconstruction":
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat = self(x)
             loss = F.mse_loss(x_hat, x, reduction="mean")
 
             result = torch.stack([x_hat.cpu().detach(), x.cpu().detach()], dim=1)
-        elif self.hparams.data_type == "prediction":
+        elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat = self(x)
             loss = F.mse_loss(y_hat, y, reduction="mean")
@@ -81,11 +82,11 @@ class Base(pl.LightningModule):
         return result
     
     def test_step(self, batch, batch_idx):
-        if self.hparams.data_type == "reconstruction":
+        if self.hparams.task_type == "reconstruction":
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat = self(x)
             loss = F.mse_loss(x_hat, x, reduction="mean")
-        elif self.hparams.data_type == "prediction":
+        elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat = self(x)
             loss = F.mse_loss(y_hat, y, reduction="mean")
@@ -93,12 +94,12 @@ class Base(pl.LightningModule):
         self.log("test_loss", loss)
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        if self.hparams.data_type == "reconstruction":
+        if self.hparams.task_type == "reconstruction":
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat, attention = self(x)
 
             return x_hat, x, attention
-        elif self.hparams.data_type == "prediction":
+        elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat, attention = self(x)
 
@@ -112,6 +113,7 @@ class Base(pl.LightningModule):
 class Attention_Autoencoder(Base):
     def __init__(
         self,
+        model_random_seed=42,
         neuron_num=10,
         window_size=200,
         hidden_size_1=128, # MLP_1
@@ -124,7 +126,7 @@ class Attention_Autoencoder(Base):
         learning_rate=1e-4,
         prediction_mode=False,
         pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
-        data_type = "reconstruction",    # "reconstruction" or "prediction"
+        task_type = "reconstruction",    # "reconstruction" or "prediction"
         predict_window_size = 100,
     ):
         super().__init__()
@@ -132,13 +134,15 @@ class Attention_Autoencoder(Base):
 
         self.prediction_mode = prediction_mode
 
+        torch.manual_seed(model_random_seed)
+
         # MLP_1
 
-        if data_type == "reconstruction":
+        if task_type == "reconstruction":
             self.fc1 = nn.Sequential(
                 nn.Linear(window_size, hidden_size_1), nn.ReLU()
             )
-        elif data_type == "prediction":
+        elif task_type == "prediction":
             self.fc1 = nn.Sequential(
                 nn.Linear(window_size - predict_window_size, hidden_size_1), nn.ReLU()
             )
@@ -155,12 +159,16 @@ class Attention_Autoencoder(Base):
         self.pos_enc_type = pos_enc_type
         if pos_enc_type == "sin_cos":
             self.position_enc = PositionalEncoding(hidden_size_1, neuron_num=neuron_num)
-            self.layer_norm = nn.LayerNorm(hidden_size_1)
+            dim_in = hidden_size_1
+            self.layer_norm = nn.LayerNorm(dim_in)
         elif pos_enc_type == "lookup_table":
             self.embedding_table = nn.Embedding(
                 num_embeddings=neuron_num, embedding_dim=hidden_size_1
             )
-            self.layer_norm = nn.LayerNorm(hidden_size_1)
+            dim_in = hidden_size_1
+            self.layer_norm = nn.LayerNorm(dim_in)
+        else:
+            dim_in = hidden_size_1
 
         self.attentionlayers = nn.ModuleList()
 
@@ -169,7 +177,7 @@ class Attention_Autoencoder(Base):
                 nn.Sequential(
                     Residual_For_Attention(
                         Attention(
-                            dim=hidden_size_1,  # dimension of the last out channel
+                            dim=dim_in,  # the last dimension of input
                             heads=heads,
                             prediction_mode=self.prediction_mode,
                         ),
@@ -179,24 +187,24 @@ class Attention_Autoencoder(Base):
             )
             self.attentionlayers.append(
                 nn.Sequential(
-                    nn.LayerNorm(hidden_size_1),
+                    nn.LayerNorm(dim_in),
                     Residual(
                         nn.Sequential(
-                            nn.Linear(hidden_size_1, hidden_size_1 * 2),
+                            nn.Linear(dim_in, hidden_size_1 * 2),
                             nn.Dropout(dropout),
                             nn.ReLU(),
-                            nn.Linear(hidden_size_1 * 2, hidden_size_1),
+                            nn.Linear(hidden_size_1 * 2, dim_in),
                             nn.Dropout(dropout),
                         )
                     ),
-                    nn.LayerNorm(hidden_size_1),
+                    nn.LayerNorm(dim_in),
                 )
             )
 
         # MLP_2
 
         self.fc2 = nn.Sequential(
-            nn.Linear(hidden_size_1, hidden_size_2), nn.ReLU()
+            nn.Linear(dim_in, hidden_size_2), nn.ReLU()
         )
 
         self.fclayers2 = nn.ModuleList(
@@ -206,9 +214,9 @@ class Attention_Autoencoder(Base):
             for layer in range(h_layers_2)
         )
 
-        if data_type == "reconstruction":
+        if task_type == "reconstruction":
             self.out = nn.Linear(hidden_size_2, window_size)
-        elif data_type == "prediction":
+        elif task_type == "prediction":
             self.out = nn.Linear(hidden_size_2, predict_window_size)
 
 
@@ -225,6 +233,8 @@ class Attention_Autoencoder(Base):
             # Add positional encoding
             idx = torch.arange(x.shape[1]).to(x.device)
             x = x + self.embedding_table(idx)
+            # embedding = einops.repeat(self.embedding_table(idx), 'n d -> b n d', b=x.shape[0])
+            # x = torch.concat([x, embedding], dim=-1)
             x = self.layer_norm(x)
 
         attention_results = []

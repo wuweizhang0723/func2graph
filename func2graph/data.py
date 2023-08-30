@@ -28,8 +28,8 @@ class data_simulator(Module):
         weight_scale = 1,
         init_scale = 1,
         total_time=30000,
-        random_seed=42,
-        weight_type="random",    # "random" or "cluster" or "nearest_neighbor"
+        data_random_seed=42,
+        weight_type="random",    # "random" or "simple"
     ):
         super().__init__()
         self.neuron_num = neuron_num
@@ -39,10 +39,27 @@ class data_simulator(Module):
         self.spike_neuron_num = spike_neuron_num
         self.spike_input = spike_input
 
-        torch.manual_seed(random_seed)
+        torch.manual_seed(data_random_seed)
 
         if weight_type == "random":
             self.W_ij = weight_scale * torch.randn(neuron_num, neuron_num) # W_ij initialization
+        elif weight_type == "random_sparse":
+            # self.W_ij = torch.zeros(neuron_num, neuron_num)
+            self.W_ij = weight_scale * 0.5 * torch.randn(neuron_num, neuron_num)
+            for i in range(0, 5):
+                self.W_ij[i][8-i] = 1
+                self.W_ij[8-i][i] = 1
+            for i in range(1, 6):
+                self.W_ij[i][10-i] = 1
+                self.W_ij[10-i][i] = 1
+        elif weight_type == "sparse":
+            self.W_ij = torch.zeros(neuron_num, neuron_num)
+            for i in range(0, 5):
+                self.W_ij[i][8-i] = 1
+                self.W_ij[8-i][i] = 1
+            for i in range(1, 6):
+                self.W_ij[i][10-i] = 1
+                self.W_ij[10-i][i] = 1
         else:
             self.W_ij = tools.construct_weight_matrix(neuron_num, type=weight_type)
 
@@ -73,7 +90,7 @@ def generate_simulation_data(
     weight_scale = 1,
     init_scale = 1,
     total_time = 30000,
-    random_seed=42,
+    data_random_seed=42,
     weight_type="random",
     train_data_size = 20000,
     window_size = 200,
@@ -81,15 +98,13 @@ def generate_simulation_data(
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
-    data_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline_2"
+    task_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline_2"
     predict_window_size = 100,
 ) -> DataLoader:
     """
     Generate dataset.
     Return dataloaders and ground truth weight matrix.
     """
-
-    torch.manual_seed(random_seed)
 
     # Simulate 10 neuron data for 30,000 time steps
 
@@ -102,7 +117,7 @@ def generate_simulation_data(
         weight_scale=weight_scale,
         init_scale=init_scale,
         total_time=total_time,
-        random_seed=random_seed,
+        data_random_seed=data_random_seed,
         weight_type=weight_type
     )
 
@@ -136,7 +151,7 @@ def generate_simulation_data(
     train_data = data[:, :train_data_length]
     val_data = data[:, train_data_length:]
 
-    if data_type == "reconstruction" or data_type == "prediction":
+    if (task_type == "reconstruction") or (task_type == "prediction"):
         val_data_size = val_data.shape[1] - window_size + 1
         val_start_indices = torch.arange(val_data_size)
 
@@ -155,7 +170,7 @@ def generate_simulation_data(
             train_datar_result.append(sample.view(1, neuron_num, window_size))
         train_data = torch.cat(train_datar_result, dim=0)
 
-    elif data_type == "baseline_2":  
+    elif task_type == "baseline_2":  
         # Baseline_2 takes in activity from one previous time step to predict for the next time step
         train_x = train_data[:, :-1].transpose(0, 1)
         train_y = train_data[:, 1:].transpose(0, 1)
@@ -164,13 +179,13 @@ def generate_simulation_data(
         val_y = val_data[:, 1:].transpose(0, 1)
 
 
-    if data_type == "reconstruction":
+    if task_type == "reconstruction":
         train_dataset = TensorDataset(train_data)
         val_dataset = TensorDataset(val_data)
-    elif data_type == "prediction":
+    elif task_type == "prediction":
         train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
         val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
-    elif data_type == "baseline_2":
+    elif task_type == "baseline_2":
         train_dataset = TensorDataset(train_x, train_y)
         val_dataset = TensorDataset(val_x, val_y)
 

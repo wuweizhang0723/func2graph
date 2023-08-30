@@ -38,7 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--init_scale", default=1)
 
     parser.add_argument("--total_time", help="total time", default=30000)
-    parser.add_argument("--random_seed", help="random seed", default=42)
+    parser.add_argument("--data_random_seed", help="data random seed", default=42)
 
     parser.add_argument("--weight_type", default="random")    # "random"
 
@@ -47,10 +47,12 @@ if __name__ == "__main__":
 
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
 
-    parser.add_argument("--data_type", default="reconstruction")  # "reconstruction" or "prediction" or "baseline"_2
+    parser.add_argument("--task_type", default="reconstruction")  # "reconstruction" or "prediction" or "baseline"_2
     parser.add_argument("--predict_window_size", default=100)
 
     # Model
+    parser.add_argument("--model_random_seed", default=42)
+
     parser.add_argument("--hidden_size_1", help="hidden size 1", default=128)
     parser.add_argument("--h_layers_1", help="h layers 1", default=2)
 
@@ -87,7 +89,7 @@ if __name__ == "__main__":
     init_scale = float(args.init_scale)
 
     total_time = int(args.total_time)
-    random_seed = int(args.random_seed)
+    data_random_seed = int(args.data_random_seed)
 
     weight_type = args.weight_type
 
@@ -96,10 +98,12 @@ if __name__ == "__main__":
 
     batch_size = int(args.batch_size)
 
-    data_type = args.data_type
+    task_type = args.task_type
     predict_window_size = int(args.predict_window_size)
 
     # Model
+    model_random_seed = int(args.model_random_seed)
+
     hidden_size_1 = int(args.hidden_size_1)
     h_layers_1 = int(args.h_layers_1)
 
@@ -137,7 +141,7 @@ if __name__ == "__main__":
         + "_"
         + str(total_time)
         + "_"
-        + str(random_seed)
+        + str(data_random_seed)
         + "_"
         + weight_type
         + "_"
@@ -145,9 +149,11 @@ if __name__ == "__main__":
         + "_"
         + str(window_size)
         + "_"
-        + data_type
+        + task_type
         + "_"
         + str(predict_window_size)
+        + "_"
+        + str(model_random_seed)
         + "_"
         + str(hidden_size_1)
         + "_"
@@ -178,17 +184,18 @@ if __name__ == "__main__":
         weight_scale=weight_scale,
         init_scale=init_scale,
         total_time=total_time,
-        random_seed=random_seed,
+        data_random_seed=data_random_seed,
         weight_type=weight_type,
         train_data_size=train_data_size,
         window_size=window_size,
         batch_size=batch_size,
-        data_type=data_type,
+        task_type=task_type,
         predict_window_size=predict_window_size,
     )
 
     if model_type == "Attention_Autoencoder":
         single_model = models.Attention_Autoencoder(
+            model_random_seed=model_random_seed,
             neuron_num=neuron_num,
             window_size=window_size,
             hidden_size_1=hidden_size_1,
@@ -200,7 +207,7 @@ if __name__ == "__main__":
             dropout=dropout,
             learning_rate=learning_rate,
             pos_enc_type=pos_enc_type,
-            data_type=data_type,
+            task_type=task_type,
             predict_window_size=predict_window_size,
         )
     elif model_type == "Baseline_2":
@@ -223,6 +230,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
+        max_epochs=200,
     )
 
     trainer.fit(single_model, trainloader, validloader)
@@ -238,6 +246,7 @@ if __name__ == "__main__":
 
     if model_type == "Attention_Autoencoder":
         predict_mode_model = models.Attention_Autoencoder(
+            model_random_seed=model_random_seed,
             neuron_num=neuron_num,
             window_size=window_size,
             hidden_size_1=hidden_size_1,
@@ -249,7 +258,7 @@ if __name__ == "__main__":
             dropout=dropout,
             learning_rate=learning_rate,
             pos_enc_type=pos_enc_type,
-            data_type=data_type,
+            task_type=task_type,
             predict_window_size=predict_window_size,
             prediction_mode=True,
         )
@@ -276,14 +285,38 @@ if __name__ == "__main__":
         
         # # get average attention across 
         avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
+        W = avg_attention
+        # normalize W with standard normalization
+        W = (W - np.mean(W)) / np.std(W)    #################
 
-        plt.imshow(avg_attention)
-        plt.colorbar()
-        plt.title("Estimated W")
-        plt.savefig(output_path + "/Estimated_W.png")
-        plt.close()
 
-        plt.imshow(weight_matrix.detach().numpy())
-        plt.colorbar()
-        plt.title("Ground-truth W")
-        plt.savefig(output_path + "/Ground_truth_W.png")
+    elif model_type == "Baseline_2":
+        predict_mode_model = baselines.Baseline_2(
+            neuron_num=neuron_num,
+            learning_rate=learning_rate,
+            simulated_network_type=1,
+        )
+        model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
+
+        model_checkpoint = predict_mode_model.load_from_checkpoint(model_checkpoint_path)
+        model_checkpoint.eval()
+        W = model_checkpoint.W.weight.data
+        W = W.cpu().detach().numpy()
+
+    estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
+
+    plt.imshow(W)
+    plt.colorbar()
+    plt.title("Estimated W" + " (corr: " + str(estimation_corr) + ")")
+    plt.savefig(output_path + "/Estimated_W.png")
+    plt.close()
+
+    plt.imshow(weight_matrix.detach().numpy())
+    plt.colorbar()
+    plt.title("Ground-truth W")
+    plt.savefig(output_path + "/Ground_truth_W.png")
+
+    # save estimated W to npy file
+    np.save(output_path + "/" + "Estimated_W_" + str(model_random_seed) + ".npy", W)
+
+        

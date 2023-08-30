@@ -83,7 +83,7 @@ class PositionalEncoding(nn.Module):
 class Attention(nn.Module):
     def __init__(
         self,
-        dim,  # the input has shape (batch_size, len, dim) = (b, n, dim)
+        dim,  # the input and output has shape (batch_size, len, dim) = (b, n, dim)
         *,
         heads=8,
         dim_key=64,
@@ -95,7 +95,6 @@ class Attention(nn.Module):
         super().__init__()
         self.scale = dim_key ** -0.5
         self.heads = heads
-        self.dim = dim
 
         # Q, K, V
 
@@ -137,6 +136,6 @@ class Attention(nn.Module):
 
         if self.prediction_mode == True:
             print('1')
-            return self.to_out(out), attn0
+            return self.to_out(out), logits
         else:
             return self.to_out(out)  # (b, n, dim)

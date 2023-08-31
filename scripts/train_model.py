@@ -286,9 +286,7 @@ if __name__ == "__main__":
         # # get average attention across 
         avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
         W = avg_attention
-        # normalize W with standard normalization
-        W = (W - np.mean(W)) / np.std(W)    #################
-
+        
 
     elif model_type == "Baseline_2":
         predict_mode_model = baselines.Baseline_2(
@@ -318,5 +316,3 @@ if __name__ == "__main__":
 
     # save estimated W to npy file
     np.save(output_path + "/" + "Estimated_W_" + str(model_random_seed) + ".npy", W)
-
-        

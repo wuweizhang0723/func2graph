@@ -136,6 +136,6 @@ class Attention(nn.Module):
 
         if self.prediction_mode == True:
             print('1')
-            return self.to_out(out), logits
+            return self.to_out(out), attn0
         else:
             return self.to_out(out)  # (b, n, dim)

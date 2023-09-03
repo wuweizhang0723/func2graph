@@ -108,6 +108,8 @@ def generate_simulation_data(
 
     # Simulate 10 neuron data for 30,000 time steps
 
+    # torch.manual_seed(data_random_seed)
+
     simulator = data_simulator(
         neuron_num=neuron_num, 
         dt=dt, 

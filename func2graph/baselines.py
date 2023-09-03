@@ -110,7 +110,7 @@ class Base_2(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
 
-        return torch.cat((y_hat.cpu().detach(), y.cpu().detach()), dim=1)
+        return torch.cat((y_hat.cpu().detach(), y.cpu().detach()), dim=1) # batch_size * (2 * neuron_num)
 
     
 

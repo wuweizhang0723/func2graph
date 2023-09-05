@@ -50,11 +50,16 @@ if __name__ == "__main__":
     parser.add_argument("--task_type", default="reconstruction")  # "reconstruction" or "prediction" or "baseline"_2
     parser.add_argument("--predict_window_size", default=100)
 
+    parser.add_argument("--data_type", default="wuwei")   # "ziyu"
+
     # Model
     parser.add_argument("--model_random_seed", default=42)
 
     parser.add_argument("--hidden_size_1", help="hidden size 1", default=128)
     parser.add_argument("--h_layers_1", help="h layers 1", default=2)
+    
+    parser.add_argument("--hidden_size_1_S", help="hidden size 1", default=128)
+    parser.add_argument("--hidden_size_1_T", help="hidden size 1", default=128)
 
     parser.add_argument("--heads", help="heads", default=1)
     parser.add_argument("--attention_layers", help="attention layers", default=1)
@@ -67,6 +72,8 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", help="learning rate", default=1e-4)
 
     parser.add_argument("--pos_enc_type", default="none")
+
+    parser.add_argument("--attention_type", default="spatial_temporal_1")  # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal_3" or "spatial"
 
     # Baseline_2
 
@@ -101,11 +108,15 @@ if __name__ == "__main__":
     task_type = args.task_type
     predict_window_size = int(args.predict_window_size)
 
+    data_type = args.data_type
+
     # Model
     model_random_seed = int(args.model_random_seed)
 
     hidden_size_1 = int(args.hidden_size_1)
     h_layers_1 = int(args.h_layers_1)
+    hidden_size_1_S = int(args.hidden_size_1_S)
+    hidden_size_1_T = int(args.hidden_size_1_T)
 
     heads = int(args.heads)
     attention_layers = int(args.attention_layers)
@@ -119,11 +130,15 @@ if __name__ == "__main__":
 
     pos_enc_type = args.pos_enc_type
 
+    attention_type = args.attention_type
+
 
 
     output_path = (
         out_folder
         + model_type
+        + "_"
+        + data_type
         + "_"
         + str(neuron_num)
         + "_"
@@ -157,6 +172,10 @@ if __name__ == "__main__":
         + "_"
         + str(hidden_size_1)
         + "_"
+        + str(hidden_size_1_S)
+        + "_"
+        + str(hidden_size_1_T)
+        + "_"
         + str(h_layers_1)
         + "_"
         + str(heads)
@@ -170,6 +189,8 @@ if __name__ == "__main__":
         + str(learning_rate)
         + "_"
         + pos_enc_type
+        + "_"
+        + attention_type
     )
 
     checkpoint_path = output_path
@@ -191,6 +212,7 @@ if __name__ == "__main__":
         batch_size=batch_size,
         task_type=task_type,
         predict_window_size=predict_window_size,
+        data_type=data_type,
     )
 
     if model_type == "Attention_Autoencoder":
@@ -216,6 +238,25 @@ if __name__ == "__main__":
             learning_rate=learning_rate,
             simulated_network_type=1,
         )
+    elif model_type == "Spatial_Temporal_Attention_Model":
+        single_model = models.Spatial_Temporal_Attention_Model(
+            model_random_seed=model_random_seed,
+            neuron_num=neuron_num,
+            window_size=window_size,
+            predict_window_size = predict_window_size,
+            hidden_size_1_T = hidden_size_1_T,
+            hidden_size_1_S = hidden_size_1_S,
+            h_layers_1=h_layers_1,
+            attention_type = attention_type,
+            pos_enc_type = pos_enc_type,
+            heads=heads,
+            hidden_size_2=hidden_size_2,
+            h_layers_2=h_layers_2,
+            dropout=dropout,
+            learning_rate=learning_rate,
+            task_type=task_type,
+        )
+
 
     es = EarlyStopping(monitor="val_loss", patience=12)  ###########
     checkpoint_callback = ModelCheckpoint(
@@ -244,24 +285,45 @@ if __name__ == "__main__":
     # 3.validation loss 
     # 4.activity prediction plot
 
-    if model_type == "Attention_Autoencoder":
-        predict_mode_model = models.Attention_Autoencoder(
-            model_random_seed=model_random_seed,
-            neuron_num=neuron_num,
-            window_size=window_size,
-            hidden_size_1=hidden_size_1,
-            h_layers_1=h_layers_1,
-            heads=heads,
-            attention_layers=attention_layers,
-            hidden_size_2=hidden_size_2,
-            h_layers_2=h_layers_2,
-            dropout=dropout,
-            learning_rate=learning_rate,
-            pos_enc_type=pos_enc_type,
-            task_type=task_type,
-            predict_window_size=predict_window_size,
-            prediction_mode=True,
-        )
+    if model_type == "Attention_Autoencoder" or model_type == "Spatial_Temporal_Attention_Model":
+        if model_type == "Attention_Autoencoder":
+            predict_mode_model = models.Attention_Autoencoder(
+                model_random_seed=model_random_seed,
+                neuron_num=neuron_num,
+                window_size=window_size,
+                hidden_size_1=hidden_size_1,
+                h_layers_1=h_layers_1,
+                heads=heads,
+                attention_layers=attention_layers,
+                hidden_size_2=hidden_size_2,
+                h_layers_2=h_layers_2,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                pos_enc_type=pos_enc_type,
+                task_type=task_type,
+                predict_window_size=predict_window_size,
+                prediction_mode=True,
+            )
+        elif model_type == "Spatial_Temporal_Attention_Model":
+            predict_mode_model = models.Spatial_Temporal_Attention_Model(
+                model_random_seed=model_random_seed,
+                neuron_num=neuron_num,
+                window_size=window_size,
+                predict_window_size = predict_window_size,
+                hidden_size_1_T=hidden_size_1_T,
+                hidden_size_1_S=hidden_size_1_S,
+                h_layers_1=h_layers_1,
+                attention_type = attention_type,
+                pos_enc_type = pos_enc_type,
+                heads=heads,
+                hidden_size_2=hidden_size_2,
+                h_layers_2=h_layers_2,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                task_type=task_type,
+                prediction_mode=True,
+            )
+
         model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
 
         train_results = trainer.predict(predict_mode_model, dataloaders=[trainloader], ckpt_path=model_checkpoint_path)

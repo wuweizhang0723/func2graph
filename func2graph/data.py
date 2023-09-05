@@ -100,6 +100,7 @@ def generate_simulation_data(
     split_ratio = 0.8,
     task_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline_2"
     predict_window_size = 100,
+    data_type = "wuwei", #"ziyu"
 ) -> DataLoader:
     """
     Generate dataset.
@@ -110,33 +111,40 @@ def generate_simulation_data(
 
     # torch.manual_seed(data_random_seed)
 
-    simulator = data_simulator(
-        neuron_num=neuron_num, 
-        dt=dt, 
-        tau=tau,  
-        spike_neuron_num=spike_neuron_num, 
-        spike_input=spike_input,
-        weight_scale=weight_scale,
-        init_scale=init_scale,
-        total_time=total_time,
-        data_random_seed=data_random_seed,
-        weight_type=weight_type
-    )
+    if data_type == "ziyu":
+        data, S = ziyu_data_simulator()
+        total_time = data.shape[1]
+        neuron_num = data.shape[0]
+        data = torch.from_numpy(data).float()
 
-    data = []
+    elif data_type == "wuwei":
+        simulator = data_simulator(
+            neuron_num=neuron_num, 
+            dt=dt, 
+            tau=tau,  
+            spike_neuron_num=spike_neuron_num, 
+            spike_input=spike_input,
+            weight_scale=weight_scale,
+            init_scale=init_scale,
+            total_time=total_time,
+            data_random_seed=data_random_seed,
+            weight_type=weight_type
+        )
 
-    for t in range(total_time):
-        x_t = simulator.forward(t)
-        x_t = x_t.view(-1, 1)
-        data.append(x_t)
+        data = []
 
-    data = torch.cat(data, dim=1).float()
+        for t in range(total_time):
+            x_t = simulator.forward(t)
+            x_t = x_t.view(-1, 1)
+            data.append(x_t)
+        data = torch.cat(data, dim=1).float()
+
     print(data.shape)
 
     # Normalize on entire dataset
-    mean = torch.mean(data, dim=1).view(-1, 1)
-    std = torch.std(data, dim=1).view(-1, 1)
-    data = (data - mean) / std
+    # mean = torch.mean(data, dim=1).view(-1, 1)
+    # std = torch.std(data, dim=1).view(-1, 1)
+    # data = (data - mean) / std
 
 
     # Construct train/val data after simulation (time width=200)
@@ -194,4 +202,77 @@ def generate_simulation_data(
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
-    return train_dataloader, val_dataloader, simulator.W_ij
+    if data_type == "ziyu":
+        return train_dataloader, val_dataloader, torch.from_numpy(S)
+    elif data_type == "wuwei":
+        return train_dataloader, val_dataloader, simulator.W_ij
+
+
+
+def ziyu_data_simulator():
+    # Set random seed for reproducibility
+    np.random.seed(0)
+
+    Ne = 4
+    Ni = 1
+
+    re = np.random.rand(Ne, 1)
+    ri = np.random.rand(Ni, 1)
+
+    a = np.concatenate((0.02 * np.ones((Ne, 1)), 0.02 + 0.08 * ri), axis=0)
+    b = -0.1 * np.ones((Ne + Ni, 1))
+    c = np.concatenate((-65 + 15 * re**2, -65 * np.ones((Ni, 1))), axis=0)
+    d = np.concatenate((8 - 6 * re**2, 2 * np.ones((Ni, 1))), axis=0)
+
+    params = np.concatenate((a, b, c, d), axis=1)
+
+    S0 = 5
+
+    # Specify connectivity
+    S = np.zeros((Ne + Ni, Ne + Ni))
+    S[0, 3] = 1
+    S[3, 0] = 1
+    S[1, 2] = 1
+    S[2, 1] = 1
+    S[2, 3] = 1
+    S[3, 2] = 1
+    S[1, 4] = -1
+    S[4, 1] = 1
+    S = S0 * S
+
+    v = -65 * np.ones((Ne + Ni, 1))
+    u = b * v
+    firings = []
+    V = [v]
+    U = [u]
+    inps = []
+
+    for t in range(1, 5001):  # Simulation of 5000 ms
+        I = np.concatenate((5 * np.ones((Ne, 1)), 5 * np.ones((Ni, 1))), axis=0)
+        inps.append(I)
+        fired = np.where(v >= 30)[0]
+        firings.extend([(t + 0 * f, f) for f in fired])
+        v[fired] = c[fired]
+        u[fired] = u[fired] + d[fired]
+        I = I + np.sum(S[:, fired], axis=1).reshape(-1, 1)
+        v = v + 0.5 * (0.04 * v**2 + 4.1 * v + 108 - u + I)
+        v = v + 0.5 * (0.04 * v**2 + 4.1 * v + 108 - u + I)
+        u = u + a * (b * v - u)
+        V.append(v)
+        U.append(u)
+
+    firings = np.array(firings)
+    
+    result = np.zeros((5, 5000))
+    result[0][firings[firings[:,1]==0]-1] = 1
+    result[0] = 5 * result[0]
+    result[1][firings[firings[:,1]==1]-1] = 1
+    result[1] = 5 * result[1]
+    result[2][firings[firings[:,1]==2]-1] = 1
+    result[2] = 5 * result[2]
+    result[3][firings[firings[:,1]==3]-1] = 1
+    result[3] = 5 * result[3]
+    result[4][firings[firings[:,1]==4]-1] = 1
+    result[4] = 2.5 * result[4]
+
+    return result, S

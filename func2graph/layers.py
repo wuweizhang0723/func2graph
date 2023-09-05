@@ -48,10 +48,10 @@ class Residual_For_Attention(nn.Module):
 # Use sinudial positional encoding from Attention is All You Need.
 # Positional Encoding is only added once in the model before attention layer.
 class PositionalEncoding(nn.Module):
-    def __init__(self, encoding_dim, neuron_num=10):
+    def __init__(self, encoding_dim, num=10):
         super(PositionalEncoding, self).__init__()
 
-        self.pos_table = self._get_sinusoid_encoding_table(neuron_num, encoding_dim)
+        self.pos_table = self._get_sinusoid_encoding_table(num, encoding_dim)
 
     def _get_sinusoid_encoding_table(self, n_position, encoding_dim):
         """Sinusoid position encoding table"""
@@ -139,3 +139,137 @@ class Attention(nn.Module):
             return self.to_out(out), attn0
         else:
             return self.to_out(out)  # (b, n, dim)
+        
+
+
+
+# spatial_temporal_1: spatial attention has no value matrix
+# spatial_temporal_2: temporal attention has no value matrix
+# spatial_temporal_3: spatial attention has value matrix, temporal attention has value matrix
+# spatial: there is no temporal attention
+#
+class Spatial_Temporal_Attention(nn.Module):
+    def __init__(
+        self,
+        dim_T,  # the input and output has shape (batch_size, len, dim) = (b, t, dim_T)
+        dim_S,  # the input and output has shape (batch_size, len, dim) = (b, n, dim_S)
+        *,
+        heads=1,
+        dim_key_T=10,
+        dim_value_T=10,    # dim_value_T = dim_T = N must be satisfied
+        dim_key_S=199,
+        dim_value_S=199,   # dim_value_S = dim_S = T must be satisfied
+        dropout=0.0,
+        pos_dropout=0.0,
+        prediction_mode=False,
+        attention_type = "spatial_temporal_1",  # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal_3" or "spatial"
+        pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
+    ):
+        super().__init__()
+        # dim_S = T, dim_T = N
+
+        self.scale_T = dim_key_T ** -0.5
+        self.scale_S = dim_key_S ** -0.5
+        self.heads = heads
+
+        self.attention_type = attention_type
+
+        # Q_T, K_T, V_T
+
+        self.to_q_T = nn.Linear(dim_T, dim_key_T * heads, bias=False)
+        self.to_k_T = nn.Linear(dim_T, dim_key_T * heads, bias=False)
+        self.to_v_T = nn.Linear(dim_T, dim_value_T * heads, bias=False)
+
+        # Q_S, K_S, V_S
+
+        self.to_q_S = nn.Linear(dim_S, dim_key_S * heads, bias=False)
+        self.to_k_S = nn.Linear(dim_S, dim_key_S * heads, bias=False)
+        self.to_v_S = nn.Linear(dim_S, dim_value_S * heads, bias=False)
+
+        self.to_out_T = nn.Linear(dim_value_T * heads, dim_T)
+        self.to_out_S = nn.Linear(dim_value_S * heads, dim_S)
+
+        self.to_out_T_S = nn.Linear(dim_S + dim_S, dim_S)
+
+        self.rel_content_bias_T = nn.Parameter(torch.randn(1, heads, 1, dim_key_T))
+        self.rel_content_bias_S = nn.Parameter(torch.randn(1, heads, 1, dim_key_S))
+
+        nn.init.zeros_(self.to_out_T.weight)
+        nn.init.zeros_(self.to_out_T.bias)
+        nn.init.zeros_(self.to_out_S.weight)
+        nn.init.zeros_(self.to_out_S.bias)
+
+        # dropouts
+
+        self.attn_dropout = nn.Dropout(dropout)
+
+        # prediction mode
+
+        self.prediction_mode = prediction_mode
+
+    def forward(self, x): # x_T: b*T*N, x_S: b*N*T
+        x_T, x_S = x
+        n, t, h, device = x_S.shape[-2], x_S.shape[-1], self.heads, x_S.device
+
+        q_T = self.to_q_T(x_T)
+        k_T = self.to_k_T(x_T)
+        v_T = self.to_v_T(x_T)
+
+        q_S = self.to_q_S(x_S)
+        k_S = self.to_k_S(x_S)
+        v_S = self.to_v_S(x_S)
+
+        q_T, k_T, v_T = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=h), (q_T, k_T, v_T))
+        q_T = q_T * self.scale_T
+
+        q_S, k_S, v_S = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=h), (q_S, k_S, v_S))
+        q_S = q_S * self.scale_S
+
+        logits_T = einsum("b h i d, b h j d -> b h i j", q_T + self.rel_content_bias_T, k_T)
+        logits_S = einsum("b h i d, b h j d -> b h i j", q_S + self.rel_content_bias_S, k_S)
+
+        attn_T = logits_T.softmax(dim=-1)  # softmax over the last dimension
+        attn_S_0 = logits_S.softmax(dim=-1)  # softmax over the last dimension
+
+        attn_T = self.attn_dropout(attn_T)
+        attn_S = self.attn_dropout(attn_S_0)
+
+        out_T = einsum("b h i j, b h j d -> b h i d", attn_T, v_T)
+        out_S = einsum("b h i j, b h j d -> b h i d", attn_S, v_S)
+
+        if self.attention_type == "spatial_temporal_1":
+            # multiply attn_S with out_T
+            out_T = einsum("b h i j, b h t j -> b h t i", attn_S, out_T)
+        elif self.attention_type == "spatial_temporal_2":
+            # multiply attn_T with out_S
+            out_S = einsum("b h i j, b h n j -> b h n i", attn_T, out_S)
+
+        out_T = rearrange(out_T, "b h t d -> b t (h d)")
+        out_S = rearrange(out_S, "b h n d -> b n (h d)")
+
+        out_T = self.to_out_T(out_T)  # (b, t, dim_T)
+        out_S = self.to_out_S(out_S) # (b, n, dim_S)
+
+        if self.attention_type == "spatial_temporal_3":
+            # transpose out_T
+            # concate out_S transpose and out_T
+            print(out_S.shape)
+            print(out_T.shape)
+            out_T_S = torch.cat((out_S, out_T.permute(0, 2, 1)), dim=-1)  # (b, dim_T, t+dim_S)
+            out_T_S = self.to_out_T_S(out_T_S)  # (b, n=dim_T, t=dim_S)
+
+        
+        if self.prediction_mode == True:
+            if self.attention_type == "spatial_temporal_1" :
+                return out_T.permute(0, 2, 1), attn_S_0
+            elif self.attention_type == "spatial_temporal_2" or self.attention_type == "spatial":
+                return out_S, attn_S_0
+            elif self.attention_type == "spatial_temporal_3":
+                return out_T_S, attn_S_0
+        else:
+            if self.attention_type == "spatial_temporal_1" :
+                return out_T.permute(0, 2, 1)
+            elif self.attention_type == "spatial_temporal_2" or self.attention_type == "spatial":
+                return out_S
+            elif self.attention_type == "spatial_temporal_3":
+                return out_T_S

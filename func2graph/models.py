@@ -307,8 +307,8 @@ class Spatial_Temporal_Attention_Model(Base):
 
         # MLP_1
 
+        # x_S
         if task_type == "reconstruction":
-            # x_S
             self.fc1_S = nn.Sequential(
                 nn.Linear(window_size, hidden_size_1_S), nn.ReLU()
             )

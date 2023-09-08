@@ -128,6 +128,7 @@ class Attention(nn.Module):
         q = q * self.scale
 
         logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+        # logits = torch.abs(logits)
         attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
         attn = self.attn_dropout(attn0)
 
@@ -227,6 +228,7 @@ class Spatial_Temporal_Attention(nn.Module):
 
         logits_T = einsum("b h i d, b h j d -> b h i j", q_T + self.rel_content_bias_T, k_T)
         logits_S = einsum("b h i d, b h j d -> b h i j", q_S + self.rel_content_bias_S, k_S)
+        # logits_S = torch.abs(logits_S)
 
         attn_T = logits_T.softmax(dim=-1)  # softmax over the last dimension
         attn_S_0 = logits_S.softmax(dim=-1)  # softmax over the last dimension

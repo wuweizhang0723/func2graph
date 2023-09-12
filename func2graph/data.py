@@ -60,6 +60,15 @@ class data_simulator(Module):
             for i in range(1, 6):
                 self.W_ij[i][10-i] = 1
                 self.W_ij[10-i][i] = 1
+        elif weight_type == "low_rank":
+            rank = 5
+            eigenvalues = torch.normal(0, 5, size=(rank,))
+            eigenvectors_1 = torch.normal(0, 1, size=(rank, neuron_num))
+            eigenvectors_2 = torch.normal(0, 1, size=(rank, neuron_num))
+
+            self.W_ij = torch.zeros((neuron_num, neuron_num))
+            for i in range(rank):
+                self.W_ij += eigenvalues[i] * (eigenvectors_1[i].view(neuron_num,1)@eigenvectors_2[i].view(1,neuron_num))
         else:
             self.W_ij = tools.construct_weight_matrix(neuron_num, type=weight_type)
 

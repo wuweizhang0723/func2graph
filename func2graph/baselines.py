@@ -125,9 +125,12 @@ class Baseline_2(Base_2):
         neuron_num=10,
         learning_rate=1e-4,
         simulated_network_type=1,
+        model_random_seed=42,
     ):
         super().__init__()
         self.save_hyperparameters()
+
+        torch.manual_seed(model_random_seed)
 
         self.simulated_network_type = simulated_network_type
 

@@ -258,7 +258,7 @@ if __name__ == "__main__":
         )
 
 
-    es = EarlyStopping(monitor="val_loss", patience=12)  ###########
+    es = EarlyStopping(monitor="val_loss", patience=8)  ###########
     checkpoint_callback = ModelCheckpoint(
         checkpoint_path, monitor="val_loss", mode="min", save_top_k=1
     )
@@ -271,7 +271,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=200,
+        max_epochs=500,
     )
 
     trainer.fit(single_model, trainloader, validloader)
@@ -355,6 +355,7 @@ if __name__ == "__main__":
             neuron_num=neuron_num,
             learning_rate=learning_rate,
             simulated_network_type=1,
+            model_random_seed=model_random_seed,
         )
         model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
 
@@ -364,10 +365,11 @@ if __name__ == "__main__":
         W = W.cpu().detach().numpy()
 
     estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
+    estimation_corr_abs = np.corrcoef(W.flatten(), np.abs(weight_matrix).flatten())[0, 1]
 
     plt.imshow(W)
     plt.colorbar()
-    plt.title("Estimated W" + " (corr: " + str(estimation_corr) + ")")
+    plt.title("Estimated W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
     plt.savefig(output_path + "/Estimated_W.png")
     plt.close()
 

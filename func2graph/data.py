@@ -5,6 +5,9 @@ import torch.nn.functional as F
 from torch.nn.modules import Module
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader, random_split
+from os.path import dirname, join as pjoin
+import scipy.io as sio
+import pandas as pd
 
 from func2graph import tools
 
@@ -41,6 +44,8 @@ class data_simulator(Module):
 
         torch.manual_seed(data_random_seed)
 
+        self.b = torch.randn(neuron_num)    # constant input for each neuron
+
         if weight_type == "random":
             self.W_ij = weight_scale * torch.randn(neuron_num, neuron_num) # W_ij initialization
         elif weight_type == "random_sparse":
@@ -61,8 +66,8 @@ class data_simulator(Module):
                 self.W_ij[i][10-i] = 1
                 self.W_ij[10-i][i] = 1
         elif weight_type == "low_rank":
-            rank = 5
-            eigenvalues = torch.normal(0, 5, size=(rank,))
+            rank = 18
+            eigenvalues = torch.normal(0, 2, size=(rank,))
             eigenvectors_1 = torch.normal(0, 1, size=(rank, neuron_num))
             eigenvectors_2 = torch.normal(0, 1, size=(rank, neuron_num))
 
@@ -84,7 +89,8 @@ class data_simulator(Module):
 
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
-        x_t_1 = self.W_ij @ F.tanh(self.x_t)
+        # x_t_1 = self.W_ij @ F.tanh(self.x_t)
+        x_t_1 = F.tanh((self.W_ij @ self.x_t) + self.b)
         self.x_t = x_t_1
         return x_t_1   # this is a vector of size neuron_num
     
@@ -109,7 +115,7 @@ def generate_simulation_data(
     split_ratio = 0.8,
     task_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline_2"
     predict_window_size = 100,
-    data_type = "wuwei", #"ziyu"
+    data_type = "wuwei", #"ziyu", "c_elegans"
 ) -> DataLoader:
     """
     Generate dataset.
@@ -148,6 +154,14 @@ def generate_simulation_data(
             data.append(x_t)
         data = torch.cat(data, dim=1).float()
 
+    elif data_type == "c_elegans":
+        data, S_E, S_Chem = c_elegans_data_simulator()
+        total_time = data.shape[1]
+        neuron_num = data.shape[0]
+        data = torch.from_numpy(data).float()
+
+        train_data_size = 1000
+
     print(data.shape)
 
     # Normalize on entire dataset
@@ -180,6 +194,9 @@ def generate_simulation_data(
             sample = val_data[:, index:index+window_size]
             val_data_result.append(sample.view(1, neuron_num, window_size))
         val_data = torch.cat(val_data_result, dim=0)
+
+        print("val_data.shape: ", val_data.shape)
+        print(val_data[-1])
 
         train_start_indices = torch.randint(low=0, high=train_data_length-window_size+1, size=(train_data_size,))
         train_datar_result = []
@@ -215,6 +232,8 @@ def generate_simulation_data(
         return train_dataloader, val_dataloader, torch.from_numpy(S)
     elif data_type == "wuwei":
         return train_dataloader, val_dataloader, simulator.W_ij
+    elif data_type == "c_elegans":
+        return train_dataloader, val_dataloader, (torch.from_numpy(S_E), torch.from_numpy(S_Chem))
 
 
 
@@ -274,14 +293,144 @@ def ziyu_data_simulator():
     
     result = np.zeros((5, 5000))
     result[0][firings[firings[:,1]==0]-1] = 1
-    result[0] = 5 * result[0]
     result[1][firings[firings[:,1]==1]-1] = 1
-    result[1] = 5 * result[1]
     result[2][firings[firings[:,1]==2]-1] = 1
-    result[2] = 5 * result[2]
     result[3][firings[firings[:,1]==3]-1] = 1
-    result[3] = 5 * result[3]
     result[4][firings[firings[:,1]==4]-1] = 1
+
+    result[0] = 5 * result[0]
+    result[1] = 5 * result[1]
+    result[2] = 5 * result[2]
+    result[3] = 5 * result[3]
     result[4] = 2.5 * result[4]
 
     return result, S
+
+
+
+
+
+def c_elegans_data_simulator():
+    N_dataset = 21   # the number of worms
+    N_cell = 189     # the number of neurons
+    T = 960          # the number of time steps
+    N_length = 109
+    odor_channels = 3
+    T_start = 160
+    trace_datasets = np.zeros((N_dataset, N_cell, T))
+    odor_datasets = np.zeros((N_dataset, odor_channels, T))
+    name_list = []
+
+    # .mat data load
+    basepath = '../data/'
+    mat_fname = pjoin(basepath, 'all_traces_Heads_new.mat')
+    trace_variable = sio.loadmat(mat_fname)
+    #trace_arr = trace_variable['norm_traces']
+    trace_arr = trace_variable['traces']
+    is_L = trace_variable['is_L']
+    neurons_name = trace_variable['neurons']
+    stim_names = trace_variable["stim_names"]
+    stimulate_seconds = trace_variable['stim_times']
+    stims = trace_variable['stims']
+    # multiple trace datasets concatnate
+    for idata in range(N_dataset):
+        ineuron = 0
+        for ifile in range(N_length):
+            if trace_arr[ifile][0].shape[1] == 42:
+                data = trace_arr[ifile][0][0][idata]
+                if data.shape[0] < 1:
+                    trace_datasets[idata][ineuron][:] = np.nan
+                else:
+                    trace_datasets[idata][ineuron][0:data[0].shape[0]] = data[0]
+                ineuron+= 1
+                data = trace_arr[ifile][0][0][idata + 21]
+                if data.shape[0] < 1:
+                    trace_datasets[idata][ineuron][:] = np.nan
+                else:
+                    trace_datasets[idata][ineuron][0:data[0].shape[0]] = data[0]
+                ineuron+= 1
+            else:
+                data = trace_arr[ifile][0][0][idata]
+                if data.shape[0] < 1:
+                    trace_datasets[idata][ineuron][:] = np.nan
+                else:
+                    trace_datasets[idata][ineuron][0:data[0].shape[0]] = data[0]
+                ineuron+= 1
+
+    # neural activity target
+    activity_worms = trace_datasets[:,:, T_start:] + 2      # ********************
+    name_list = []
+    for ifile in range(N_length):
+        if is_L[ifile][0][0].shape[0] == 42:
+            name_list.append(neurons_name[ifile][0][0] + 'L')
+            name_list.append(neurons_name[ifile][0][0] + 'R')
+        else:
+            name_list.append(neurons_name[ifile][0][0])
+    activity_list = name_list
+
+    step = 0.25
+    time = np.arange(start = 0, stop = T * step , step = step)
+    # odor list
+    odor_list = ['butanone','pentanedione','NaCL']
+    # multiple odor datasets concatnate
+    for idata in range(N_dataset):
+        for it_stimu in range(stimulate_seconds.shape[0]):
+            tim1_ind = time>stimulate_seconds[it_stimu][0]
+            tim2_ind = time<stimulate_seconds[it_stimu][1]
+            odor_on = np.multiply(tim1_ind.astype(np.int64),tim2_ind.astype(np.int64))
+            stim_odor = stims[idata][it_stimu] - 1
+            odor_datasets[idata][stim_odor][:] = odor_on
+                    
+    odor_worms = odor_datasets[:,:, T_start:]
+
+    # remove the last time step in activity_worms
+    activity_worms = activity_worms[:, :, :-1]
+
+    # build a dictionary from index to neuron name
+    index_to_neuron = {}
+    for i in range(len(activity_list)):
+        index_to_neuron[i] = activity_list[i]
+
+    # build a dictionary from neuron name to index
+    neuron_to_index = {}
+    for i in range(len(activity_list)):
+        neuron_to_index[activity_list[i]] = i
+
+
+    connectivity_df = pd.read_csv('../data/white_neuron_connect.csv', skipinitialspace = True)
+
+    connectivity_result_E = np.zeros((N_cell, N_cell))
+    connectivity_result_Chem = np.zeros((N_cell, N_cell))
+    # Loop through the rows of the connectivity df
+    for i in range(connectivity_df.shape[0]):
+        if connectivity_df.iloc[i]['Type'] == 'EJ':
+            # get the pre and post neuron names
+            pre_neuron = connectivity_df.iloc[i]['Neuron 1']
+            post_neuron = connectivity_df.iloc[i]['Neuron 2']
+            if pre_neuron not in neuron_to_index or post_neuron not in neuron_to_index:
+                continue
+            # get the pre and post neuron indices
+            pre_index = neuron_to_index[pre_neuron]
+            post_index = neuron_to_index[post_neuron]
+            # set the connectivity matrix
+            connectivity_result_E[pre_index][post_index] = connectivity_df.iloc[i]['Nbr']
+
+        elif connectivity_df.iloc[i]['Type'] == 'S' or connectivity_df.iloc[i]['Type'] == 'SP':
+            pre_neuron = connectivity_df.iloc[i]['Neuron 2']
+            post_neuron = connectivity_df.iloc[i]['Neuron 1']
+            if pre_neuron not in neuron_to_index or post_neuron not in neuron_to_index:
+                continue
+            pre_index = neuron_to_index[pre_neuron]
+            post_index = neuron_to_index[post_neuron]
+            connectivity_result_Chem[pre_index][post_index] = connectivity_df.iloc[i]['Nbr']
+
+        else:
+            pre_neuron = connectivity_df.iloc[i]['Neuron 1']
+            post_neuron = connectivity_df.iloc[i]['Neuron 2']
+            if pre_neuron not in neuron_to_index or post_neuron not in neuron_to_index:
+                continue
+            pre_index = neuron_to_index[pre_neuron]
+            post_index = neuron_to_index[post_neuron]
+            connectivity_result_Chem[pre_index][post_index] = connectivity_df.iloc[i]['Nbr']
+
+    return activity_worms[0], connectivity_result_E, connectivity_result_Chem

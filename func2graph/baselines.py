@@ -118,13 +118,13 @@ class Base_2(pl.LightningModule):
 
 # simulated_network_type:
 #   1: W_ij @ F.tanh(X_t)
-#   2: W_ij @ X_t
+#   2: F.tanh(W_ij @ X_t)
 class Baseline_2(Base_2):
     def __init__(
         self,
         neuron_num=10,
         learning_rate=1e-4,
-        simulated_network_type=1,
+        simulated_network_type=2,
         model_random_seed=42,
     ):
         super().__init__()
@@ -140,5 +140,8 @@ class Baseline_2(Base_2):
     def forward(self, x): # x: batch_size * (neuron_num)
         if self.simulated_network_type == 1:
             x = self.activation(x)
-        x = self.W(x)
+            x = self.W(x)
+        elif self.simulated_network_type == 2:
+            x = self.W(x)
+            x = self.activation(x)
         return x

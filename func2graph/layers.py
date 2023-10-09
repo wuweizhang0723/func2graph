@@ -83,11 +83,12 @@ class PositionalEncoding(nn.Module):
 class Attention(nn.Module):
     def __init__(
         self,
+        neuron_num,
         dim,  # the input and output has shape (batch_size, len, dim) = (b, n, dim)
         *,
         heads=8,
-        dim_key=64,
-        dim_value=64,
+        dim_key=64,    ########### 16 for simulated data
+        dim_value=16,
         dropout=0.0,
         pos_dropout=0.0,
         prediction_mode=False,
@@ -95,6 +96,8 @@ class Attention(nn.Module):
         super().__init__()
         self.scale = dim_key ** -0.5
         self.heads = heads
+
+        # self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
 
         # Q, K, V
 
@@ -121,25 +124,34 @@ class Attention(nn.Module):
 
         q = self.to_q(x)
         k = self.to_k(x)
-        v = self.to_v(x)
+        # v = self.to_v(x)
+        v = x.clone()            # identity mapping
+
+        # sign_matrix = self.to_sign_matrix(x)
+        # sign_matrix = rearrange(sign_matrix, "b n (h d) -> b h n d", h=h)
 
         q, k, v = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=h), (q, k, v))
 
         q = q * self.scale
 
         logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+        # logits_sign = torch.sign(logits)
         # logits = torch.abs(logits)
-        attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
+        # attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
+        attn0 = F.tanh(logits)
+        # multiply attention with sign matrix
         attn = self.attn_dropout(attn0)
 
-        out = einsum("b h i j, b h j d -> b h i d", attn, v)
+        out = einsum("b h i j, b h j d -> b h i d", attn, v)   ######### ????？ F.relu(v)
         out = rearrange(out, "b h n d -> b n (h d)")
 
         if self.prediction_mode == True:
             print('1')
-            return self.to_out(out), attn0
+            # return self.to_out(out), attn0
+            return out, attn0   ##########################
         else:
-            return self.to_out(out)  # (b, n, dim)
+            # return self.to_out(out)  # (b, n, dim)
+            return out  # (b, n, dim) ##########################
         
 
 

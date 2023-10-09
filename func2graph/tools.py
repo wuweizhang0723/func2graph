@@ -51,28 +51,28 @@ def get_avg_attention(dataloader, predict_mode_model, checkpoint_path, neuron_nu
 # Construct weight matrix -------------------------------
 # This is used in data generation procedure to decide what type of weight matrix to use
 #
-def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
-    if type=='nearest_neighbor':
-        # random sample neuron_num points on 1-D line
-        # then construct weight matrix based on the distance between each pair of points
-        positions = torch.rand(neuron_num)
-        distances = torch.zeros(neuron_num, neuron_num)
-        weight_matrix = torch.zeros(neuron_num, neuron_num)
-        for i in range(neuron_num):
-            for j in range(i+1, neuron_num):
-                distances[i, j] = torch.abs(positions[i] - positions[j])
-                distances[j, i] = distances[i, j]
-                weight_matrix[i, j] = 1 / distances[i, j]
-                weight_matrix[j, i] = weight_matrix[i, j]
+# def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
+#     if type=='nearest_neighbor':
+#         # random sample neuron_num points on 1-D line
+#         # then construct weight matrix based on the distance between each pair of points
+#         positions = torch.rand(neuron_num)
+#         distances = torch.zeros(neuron_num, neuron_num)
+#         weight_matrix = torch.zeros(neuron_num, neuron_num)
+#         for i in range(neuron_num):
+#             for j in range(i+1, neuron_num):
+#                 distances[i, j] = torch.abs(positions[i] - positions[j])
+#                 distances[j, i] = distances[i, j]
+#                 weight_matrix[i, j] = 1 / distances[i, j]
+#                 weight_matrix[j, i] = weight_matrix[i, j]
         
-        # normalize weight matrix
-        mean = torch.mean(weight_matrix)
-        std = torch.std(weight_matrix)
-        weight_matrix = (weight_matrix - mean) / std
+#         # normalize weight matrix
+#         mean = torch.mean(weight_matrix)
+#         std = torch.std(weight_matrix)
+#         weight_matrix = (weight_matrix - mean) / std
 
-        # Contol sparsity
-        # weight_matrix[weight_matrix < 0.1] = 0
-    return weight_matrix
+#         # Contol sparsity
+#         # weight_matrix[weight_matrix < 0.1] = 0
+#     return weight_matrix
 
 
 

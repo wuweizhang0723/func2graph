@@ -66,7 +66,7 @@ class data_simulator(Module):
                 self.W_ij[i][10-i] = 1
                 self.W_ij[10-i][i] = 1
         elif weight_type == "low_rank":
-            rank = 18
+            rank = 18  ####################
             eigenvalues = torch.normal(0, 2, size=(rank,))
             eigenvectors_1 = torch.normal(0, 1, size=(rank, neuron_num))
             eigenvectors_2 = torch.normal(0, 1, size=(rank, neuron_num))
@@ -74,8 +74,8 @@ class data_simulator(Module):
             self.W_ij = torch.zeros((neuron_num, neuron_num))
             for i in range(rank):
                 self.W_ij += eigenvalues[i] * (eigenvectors_1[i].view(neuron_num,1)@eigenvectors_2[i].view(1,neuron_num))
-        else:
-            self.W_ij = tools.construct_weight_matrix(neuron_num, type=weight_type)
+        # else:
+        #     self.W_ij = tools.construct_weight_matrix(neuron_num, type=weight_type)
 
         self.x_t = init_scale * torch.randn(neuron_num)    # x_(t=0) initialization
 
@@ -160,7 +160,7 @@ def generate_simulation_data(
         neuron_num = data.shape[0]
         data = torch.from_numpy(data).float()
 
-        train_data_size = 1000
+        train_data_size = 1000  ########################
 
     print(data.shape)
 
@@ -298,11 +298,11 @@ def ziyu_data_simulator():
     result[3][firings[firings[:,1]==3]-1] = 1
     result[4][firings[firings[:,1]==4]-1] = 1
 
-    result[0] = 5 * result[0]
-    result[1] = 5 * result[1]
-    result[2] = 5 * result[2]
-    result[3] = 5 * result[3]
-    result[4] = 2.5 * result[4]
+    # result[0] = 5 * result[0]
+    # result[1] = 5 * result[1]
+    # result[2] = 5 * result[2]
+    # result[3] = 5 * result[3]
+    # result[4] = 2.5 * result[4]
 
     return result, S
 
@@ -434,3 +434,96 @@ def c_elegans_data_simulator():
             connectivity_result_Chem[pre_index][post_index] = connectivity_df.iloc[i]['Nbr']
 
     return activity_worms[0], connectivity_result_E, connectivity_result_Chem
+
+
+
+
+
+
+def mouse_data_simulator(directory, date_exp, input_setting, session_normalization):
+    # load data
+    activity,frame_times,UniqueID,neuron_ttypes = load_mouse_data_session(directory, date_exp, input_setting, session_normalization)
+
+    # load ground truth weight matrix
+
+    return activity, []
+
+
+
+def load_mouse_data_session(directory, date_exp, input_setting, session_normalization):
+    gene_count = np.load(directory + date_exp + 'neuron.gene_count.npy')
+    UniqueID = np.load(directory + date_exp + 'neuron.UniqueID.npy')
+
+    with open(directory + date_exp + 'neuron.ttype.txt') as f:
+        neuron_ttypes_raw  = f.readlines()
+    neuron_ttypes = []
+    for neuron_ttype in neuron_ttypes_raw:
+        neuron_ttypes.append(neuron_ttype.strip())
+
+    frame_states = np.load(directory + date_exp + input_setting + 'frame.states.npy')
+    frame_times = np.load(directory + date_exp + input_setting + 'frame.times.npy')
+    frame_activity = np.load(directory + date_exp + input_setting + 'frame.neuralActivity.npy')
+
+    # eye_size = np.load(directory + date_exp + input_setting + 'eye.size.npy')
+    # eye_times = np.load(directory + date_exp + input_setting + 'eye.times.npy')
+
+    # if np.isnan(np.mean(eye_size)):
+    #     eye_size = interpolate_nans(eye_size[:,0])[:,np.newaxis]
+
+    # times = frame_times.shape[0]
+    # eye_times_list = list(eye_times[:,0])
+    # eye_size_resize = np.zeros((times, 1))
+    # for t in range(times):
+    #     index = bisect(eye_times_list, frame_times[t,0])
+    #     if t == times - 1:
+    #         eye_size_resize[t] = eye_size[index - 1, 0]
+    #     else:
+    #         eye_size_resize[t] = (eye_size[index - 1, 0] + eye_size[index, 0])/2
+
+    # running_speed = np.load(directory + date_exp + input_setting + 'running.speed.npy')
+    # running_times = np.load(directory + date_exp + input_setting + 'running.times.npy')
+
+    # if np.isnan(np.mean(running_speed)):
+    #     running_speed = interpolate_nans(running_speed[:,0])[:,np.newaxis]
+
+    # running_times_list = list(running_times[:,0])
+    # running_speed_resize = np.zeros((times, 1))
+    # for t in range(times):
+    #     index = bisect(running_times_list, frame_times[t,0])
+    #     if t == times - 1:
+    #         running_speed_resize[t] = running_speed[index - 1, 0]
+    #     else:
+    #         running_speed_resize[t] = (running_speed[index - 1, 0] + running_speed[index, 0])/2
+
+
+    # normalization
+    if session_normalization:
+        activity_mean = np.mean(frame_activity)
+        activity_std = np.std(frame_activity)
+    else:
+        activity_mean = np.mean(frame_activity, axis = 0)
+        activity_std = np.std(frame_activity, axis = 0)
+    activity_norm = (frame_activity - activity_mean)/activity_std
+
+    # if behavior_normalization:
+    #     running_speed_resize = (running_speed_resize - np.mean(running_speed_resize, axis = 0))/np.std(running_speed_resize, axis = 0)
+    #     eye_size_resize = (eye_size_resize - np.mean(eye_size_resize, axis = 0))/np.std(eye_size_resize, axis = 0)
+
+    # activity population
+    # activity_population = {
+    #     'running_speed': running_speed_resize,
+    #     'eye_size': eye_size_resize,
+    #     'frame_states': frame_states,
+    #     'mean_activity': np.mean(activity_norm, axis = 1, keepdims = True),
+    #     'std_activity': np.std(activity_norm, axis = 1, keepdims = True),
+    #     }
+
+    # x, y coordinate position of neurons
+    # neuron_pos = np.load(directory + date_exp +'neuron.stackPosCorrected.npy')
+    # print('neuron_pos.shape:', neuron_pos.shape)
+    # plt.figure(figsize=(4,4))
+    # plt.plot(neuron_pos[:,0],neuron_pos[:,1],'o')
+    # plt.xlabel('x axis')
+    # plt.ylabel('y axis')
+
+    return np.transpose(activity_norm), frame_times, UniqueID, neuron_ttypes

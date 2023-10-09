@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
 
-    parser.add_argument("--task_type", default="reconstruction")  # "reconstruction" or "prediction" or "baseline"_2
+    parser.add_argument("--task_type", default="reconstruction")  # "reconstruction" or "prediction" or "baseline_2"
     parser.add_argument("--predict_window_size", default=100)
 
     parser.add_argument("--data_type", default="wuwei")   # "ziyu"
@@ -63,6 +63,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--heads", help="heads", default=1)
     parser.add_argument("--attention_layers", help="attention layers", default=1)
+    parser.add_argument("--dim_key", default=64)
 
     parser.add_argument("--hidden_size_2", help="hidden size 2", default=258)
     parser.add_argument("--h_layers_2", help="h layers 2", default=2)
@@ -120,6 +121,7 @@ if __name__ == "__main__":
 
     heads = int(args.heads)
     attention_layers = int(args.attention_layers)
+    dim_key = int(args.dim_key)
 
     hidden_size_2 = int(args.hidden_size_2)
     h_layers_2 = int(args.h_layers_2)
@@ -182,6 +184,8 @@ if __name__ == "__main__":
         + "_"
         + str(attention_layers)
         + "_"
+        + str(dim_key)
+        + "_"
         + str(hidden_size_2)
         + "_"
         + str(h_layers_2)
@@ -196,6 +200,7 @@ if __name__ == "__main__":
     checkpoint_path = output_path
     log_path = out_folder + "/log"
 
+    
     trainloader, validloader, weight_matrix = data.generate_simulation_data(
         neuron_num=neuron_num,
         dt=dt,
@@ -214,6 +219,11 @@ if __name__ == "__main__":
         predict_window_size=predict_window_size,
         data_type=data_type,
     )
+    if data_type == "wuwei" or data_type == "ziyu":
+        weight_matrix = weight_matrix.detach().numpy()
+    elif data_type == "c_elegans":
+        weight_matrix_E = weight_matrix[0].detach().numpy()
+        weight_matrix_Chem = weight_matrix[1].detach().numpy()
 
     if model_type == "Attention_Autoencoder":
         single_model = models.Attention_Autoencoder(
@@ -224,6 +234,7 @@ if __name__ == "__main__":
             h_layers_1=h_layers_1,
             heads=heads,
             attention_layers=attention_layers,
+            dim_key=dim_key,
             hidden_size_2=hidden_size_2,
             h_layers_2=h_layers_2,
             dropout=dropout,
@@ -236,7 +247,8 @@ if __name__ == "__main__":
         single_model = baselines.Baseline_2(
             neuron_num=neuron_num,
             learning_rate=learning_rate,
-            simulated_network_type=1,
+            simulated_network_type=2,
+            model_random_seed=model_random_seed,
         )
     elif model_type == "Spatial_Temporal_Attention_Model":
         single_model = models.Spatial_Temporal_Attention_Model(
@@ -258,7 +270,7 @@ if __name__ == "__main__":
         )
 
 
-    es = EarlyStopping(monitor="val_loss", patience=8)  ###########
+    es = EarlyStopping(monitor="val_loss", patience=12)  ###########
     checkpoint_callback = ModelCheckpoint(
         checkpoint_path, monitor="val_loss", mode="min", save_top_k=1
     )
@@ -295,6 +307,7 @@ if __name__ == "__main__":
                 h_layers_1=h_layers_1,
                 heads=heads,
                 attention_layers=attention_layers,
+                dim_key=dim_key,
                 hidden_size_2=hidden_size_2,
                 h_layers_2=h_layers_2,
                 dropout=dropout,
@@ -354,7 +367,7 @@ if __name__ == "__main__":
         predict_mode_model = baselines.Baseline_2(
             neuron_num=neuron_num,
             learning_rate=learning_rate,
-            simulated_network_type=1,
+            simulated_network_type=2,
             model_random_seed=model_random_seed,
         )
         model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
@@ -364,19 +377,56 @@ if __name__ == "__main__":
         W = model_checkpoint.W.weight.data
         W = W.cpu().detach().numpy()
 
-    estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
-    estimation_corr_abs = np.corrcoef(W.flatten(), np.abs(weight_matrix).flatten())[0, 1]
 
-    plt.imshow(W)
-    plt.colorbar()
-    plt.title("Estimated W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
-    plt.savefig(output_path + "/Estimated_W.png")
-    plt.close()
+    if data_type == "wuwei" or data_type == "ziyu":
+        estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
+        estimation_corr_abs = np.corrcoef(W.flatten(), np.abs(weight_matrix).flatten())[0, 1]
 
-    plt.imshow(weight_matrix.detach().numpy())
-    plt.colorbar()
-    plt.title("Ground-truth W")
-    plt.savefig(output_path + "/Ground_truth_W.png")
+        plt.imshow(W)
+        plt.colorbar()
+        plt.title("Estimated W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
+        plt.savefig(output_path + "/Estimated_W.png")
+        plt.close()
 
-    # save estimated W to npy file
-    np.save(output_path + "/" + "Estimated_W_" + str(model_random_seed) + ".npy", W)
+        plt.imshow(weight_matrix)
+        plt.colorbar()
+        plt.title("Ground-truth W")
+        plt.savefig(output_path + "/Ground_truth_W.png")
+        plt.close()
+
+        # save estimated W to npy file
+        np.save(output_path + "/" + "Estimated_W_" + str(model_random_seed) + ".npy", W)
+    
+    elif data_type == "c_elegans":
+        estimation_corr_E = np.corrcoef(W.flatten(), weight_matrix_E.flatten())[0, 1]
+        estimation_corr_Chem = np.corrcoef(W.flatten(), weight_matrix_Chem.flatten())[0, 1]
+
+        estimation_corr_E_abs = np.corrcoef(np.abs(W).flatten(), weight_matrix_E.flatten())[0, 1]
+        estimation_corr_Chem_abs = np.corrcoef(np.abs(W).flatten(), weight_matrix_Chem.flatten())[0, 1]
+
+        plt.imshow(W)
+        plt.colorbar()
+        plt.title("Estimated W" + " (corr_E: " + str(estimation_corr_E)[:6] + ") " + " (corr_Chem: " + str(estimation_corr_Chem)[:6] + ")")
+        plt.savefig(output_path + "/Estimated_W.png")
+        plt.close()
+
+        plt.imshow(np.abs(W))
+        plt.colorbar()
+        plt.title("Estimated W" + " (corr_E_abs: " + str(estimation_corr_E_abs)[:6] + ") " + " (corr_Chem_abs: " + str(estimation_corr_Chem_abs)[:6] + ")")
+        plt.savefig(output_path + "/Estimated_W_abs.png")
+        plt.close()
+
+        plt.imshow(weight_matrix_E)
+        plt.colorbar()
+        plt.title("Ground-truth W_E")
+        plt.savefig(output_path + "/Ground_truth_W_E.png")
+        plt.close()
+
+        plt.imshow(weight_matrix_Chem)
+        plt.colorbar()
+        plt.title("Ground-truth W_Chem")
+        plt.savefig(output_path + "/Ground_truth_W_Chem.png")
+        plt.close()
+
+        # save estimated W to npy file
+        np.save(output_path + "/" + "Estimated_W_" + str(model_random_seed) + ".npy", W)

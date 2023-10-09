@@ -57,10 +57,12 @@ class Base(pl.LightningModule):
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat = self(x)
             loss = F.mse_loss(x_hat, x, reduction="mean")
+            # loss = F.poisson_nll_loss(x_hat, x, log_input=True, reduction="mean")
         elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat = self(x)
             loss = F.mse_loss(y_hat, y, reduction="mean")
+            # loss = F.poisson_nll_loss(y_hat, y, log_input=True, reduction="mean")
 
         self.log("train_loss", loss)
         return loss
@@ -70,17 +72,28 @@ class Base(pl.LightningModule):
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat = self(x)
             loss = F.mse_loss(x_hat, x, reduction="mean")
+            # loss = F.poisson_nll_loss(x_hat, x, log_input=True, reduction="mean")
 
             result = torch.stack([x_hat.cpu().detach(), x.cpu().detach()], dim=1)
         elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat = self(x)
             loss = F.mse_loss(y_hat, y, reduction="mean")
+            # loss = F.poisson_nll_loss(y_hat, y, log_input=True, reduction="mean")
 
             result = torch.stack([y_hat.cpu().detach(), y.cpu().detach()], dim=1)
 
         self.log("val_loss", loss)
         return result
+    
+    # def on_validation_epoch_end(self, validation_step_outputs):
+    #     all_val_result = torch.cat(validation_step_outputs, dim=0)
+
+    #     val_corr = stats.pearsonr(
+    #         all_val_result[:, 0].flatten(), all_val_result[:, 1].flatten()
+    #     ).statistic
+
+    #     self.log("val_corr", val_corr)
     
     def test_step(self, batch, batch_idx):
         if self.hparams.task_type == "reconstruction":
@@ -121,6 +134,7 @@ class Attention_Autoencoder(Base):
         h_layers_1=2,
         heads=1,  # Attention
         attention_layers=1,
+        dim_key=64,
         hidden_size_2=256, # MLP_2
         h_layers_2=2,
         dropout=0.2,
@@ -129,6 +143,7 @@ class Attention_Autoencoder(Base):
         pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
         task_type = "reconstruction",    # "reconstruction" or "prediction"
         predict_window_size = 100,
+        loss_function = "mse", # "mse" or "poisson"
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -139,21 +154,23 @@ class Attention_Autoencoder(Base):
 
         # MLP_1
 
-        if task_type == "reconstruction":
-            self.fc1 = nn.Sequential(
-                nn.Linear(window_size, hidden_size_1), nn.ReLU()
-            )
-        elif task_type == "prediction":
-            self.fc1 = nn.Sequential(
-                nn.Linear(window_size - predict_window_size, hidden_size_1), nn.ReLU()
-            )
+        # if task_type == "reconstruction":
+        #     self.fc1 = nn.Sequential(
+        #         nn.Linear(window_size, hidden_size_1), nn.ReLU()
+        #     )
+        # elif task_type == "prediction":
+        #     self.fc1 = nn.Sequential(
+        #         nn.Linear(window_size - predict_window_size, hidden_size_1), nn.ReLU()
+        #     )
 
-        self.fclayers1 = nn.ModuleList(
-            nn.Sequential(
-                nn.Linear(hidden_size_1, hidden_size_1), nn.ReLU(), nn.Dropout(dropout)
-            )
-            for layer in range(h_layers_1)
-        )
+        # self.fclayers1 = nn.ModuleList(
+        #     nn.Sequential(
+        #         nn.Linear(hidden_size_1, hidden_size_1), nn.ReLU(), nn.Dropout(dropout)
+        #     )
+        #     for layer in range(h_layers_1)
+        # )
+
+        hidden_size_1 = window_size - predict_window_size
 
         # Attention
 
@@ -189,8 +206,10 @@ class Attention_Autoencoder(Base):
             self.attentionlayers.append(
                 nn.Sequential(
                     Attention(
+                        neuron_num=neuron_num,
                         dim=dim_in,  # the last dimension of input
                         heads=heads,
+                        dim_key=dim_key,
                         prediction_mode=self.prediction_mode,
                     ),
                 )
@@ -205,6 +224,7 @@ class Attention_Autoencoder(Base):
                             nn.ReLU(),
                             nn.Linear(hidden_size_1 * 2, dim_in),
                             nn.Dropout(dropout),
+                            nn.ReLU(),
                         )
                     ),
                     nn.LayerNorm(dim_in),
@@ -231,9 +251,9 @@ class Attention_Autoencoder(Base):
 
 
     def forward(self, x): # x: batch_size * (neuron_num*time)
-        x = self.fc1(x)
-        for layer in self.fclayers1:
-            x = layer(x)
+        # x = self.fc1(x)
+        # for layer in self.fclayers1:
+        #     x = layer(x)
 
         if self.pos_enc_type == "sin_cos":
             # Add positional encoding

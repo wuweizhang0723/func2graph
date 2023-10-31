@@ -95,6 +95,9 @@ class Base(pl.LightningModule):
             loss = F.mse_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "poisson":
             loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
+        elif self.hparams.loss_function == "gaussian":
+            var = torch.ones(pred.shape, requires_grad=True).to(pred.device)  ##############################
+            loss = F.gaussian_nll_loss(pred, target, reduction="mean", var=var)
 
         self.log(str(self.hparams.loss_function) + " train_loss", loss)
         return loss
@@ -147,6 +150,9 @@ class Base(pl.LightningModule):
             loss = F.mse_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "poisson":
             loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
+        elif self.hparams.loss_function == "gaussian":
+            var = torch.ones(pred.shape, requires_grad=True).to(pred.device)  ##############################
+            loss = F.gaussian_nll_loss(pred, target, reduction="mean", var=var)
 
         self.log(str(self.hparams.loss_function) + " val_loss", loss)
         return result
@@ -201,6 +207,9 @@ class Base(pl.LightningModule):
             loss = F.mse_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "poisson":
             loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
+        elif self.hparams.loss_function == "gaussian":
+            var = torch.ones(pred.shape, requires_grad=True).to(pred.device)  ##############################
+            loss = F.gaussian_nll_loss(pred, target, reduction="mean", var=var)
         
         self.log(str(self.hparams.loss_function) + "test_loss", loss)
 
@@ -265,7 +274,7 @@ class Attention_Autoencoder(Base):
         pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
         task_type = "reconstruction",    # "reconstruction" or "prediction" or "mask"
         predict_window_size = 100,
-        loss_function = "mse", # "mse" or "poisson"
+        loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
     ):
         super().__init__()

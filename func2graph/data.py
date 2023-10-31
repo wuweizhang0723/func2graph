@@ -316,6 +316,14 @@ def generate_simulation_data(
 
 
 
+
+
+
+
+
+# Ziyu's Data ------------------------------------------------------------------------
+
+
 def ziyu_data_simulator():
     # Set random seed for reproducibility
     np.random.seed(0)
@@ -387,6 +395,7 @@ def ziyu_data_simulator():
 
 
 
+# C_elegans Data ------------------------------------------------------------------------
 
 
 def c_elegans_data_simulator():
@@ -516,7 +525,7 @@ def c_elegans_data_simulator():
 
 
 
-
+# Mouse Data --------------------------------------------------------------------------
 
 
 def mouse_data_simulator(directory, date_exp, input_setting, session_normalization):
@@ -614,4 +623,4 @@ def load_mouse_data_session(directory, date_exp, input_setting, normalization):
     # plt.xlabel('x axis')
     # plt.ylabel('y axis')
 
-    return np.transpose(activity_norm), frame_times, UniqueID, neuron_ttypes
+    return np.transpose(activity_norm), frame_times, UniqueID.reshape(-1), neuron_ttypes

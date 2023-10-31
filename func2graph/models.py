@@ -18,7 +18,7 @@ from func2graph.layers import (
 
 
 class Base(pl.LightningModule):
-    def __init__(self, scheduler="plateau") -> None:
+    def __init__(self,) -> None:
         super().__init__()
         self.save_hyperparameters()
 
@@ -35,7 +35,7 @@ class Base(pl.LightningModule):
                     optimizer,
                     patience=3,
                 ),
-                "monitor": "val_loss",
+                "monitor": str(self.hparams.loss_function) + " val_loss",
             }
         elif self.hparams.scheduler == "cycle":
             lr_scheduler = {
@@ -56,34 +56,99 @@ class Base(pl.LightningModule):
         if self.hparams.task_type == "reconstruction":
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat = self(x)
-            loss = F.mse_loss(x_hat, x, reduction="mean")
-            # loss = F.poisson_nll_loss(x_hat, x, log_input=True, reduction="mean")
+
+            pred = x_hat
+            target = x
+
         elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat = self(x)
-            loss = F.mse_loss(y_hat, y, reduction="mean")
-            # loss = F.poisson_nll_loss(y_hat, y, log_input=True, reduction="mean")
+            
+            pred = y_hat
+            target = y
 
-        self.log("train_loss", loss)
+        elif self.hparams.task_type == "mask":
+            # x, y, mask_indices = batch
+            # x_hat = self(x)
+
+            # # get the masked part from x_hat to be y_hat
+            # y_hat = torch.zeros(y.shape).to(y.device)
+            # for i in range(mask_indices.shape[0]):
+            #     for j in range(mask_indices.shape[1]):
+            #         y_hat[i, :, j] = x_hat[i, :, mask_indices[i, j]]
+            #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
+
+            x, y, mask_indices_i, mask_indices_j = batch
+            x_hat = self(x)
+
+            # get the masked part from x_hat to be y_hat
+            y_hat = torch.zeros(y.shape).to(y.device)
+            n_sample, mask_size = mask_indices_i.shape
+            for i in range(n_sample):
+                for j in range(mask_size):
+                    y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
+
+            pred = y_hat
+            target = y
+
+        if self.hparams.loss_function == "mse":
+            loss = F.mse_loss(pred, target, reduction="mean")
+        elif self.hparams.loss_function == "poisson":
+            loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
+
+        self.log(str(self.hparams.loss_function) + " train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         if self.hparams.task_type == "reconstruction":
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat = self(x)
-            loss = F.mse_loss(x_hat, x, reduction="mean")
-            # loss = F.poisson_nll_loss(x_hat, x, log_input=True, reduction="mean")
+            
+            pred = x_hat
+            target = x
 
             result = torch.stack([x_hat.cpu().detach(), x.cpu().detach()], dim=1)
         elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat = self(x)
-            loss = F.mse_loss(y_hat, y, reduction="mean")
-            # loss = F.poisson_nll_loss(y_hat, y, log_input=True, reduction="mean")
+            
+            pred = y_hat
+            target = y
 
             result = torch.stack([y_hat.cpu().detach(), y.cpu().detach()], dim=1)
 
-        self.log("val_loss", loss)
+        elif self.hparams.task_type == "mask":
+            # x, y, mask_indices = batch
+            # x_hat = self(x)
+
+            # # get the masked part from x_hat to be y_hat
+            # y_hat = torch.zeros(y.shape).to(y.device)
+            # for i in range(mask_indices.shape[0]):
+            #     for j in range(mask_indices.shape[1]):
+            #         y_hat[i, :, j] = x_hat[i, :, mask_indices[i, j]]
+            #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
+
+            x, y, mask_indices_i, mask_indices_j = batch
+            x_hat = self(x)
+
+            # get the masked part from x_hat to be y_hat
+            y_hat = torch.zeros(y.shape).to(y.device)
+            n_sample, mask_size = mask_indices_i.shape
+            for i in range(n_sample):
+                for j in range(mask_size):
+                    y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
+
+            pred = y_hat
+            target = y
+
+            result = torch.stack([y_hat.cpu().detach(), y.cpu().detach()], dim=1)
+
+        if self.hparams.loss_function == "mse":
+            loss = F.mse_loss(pred, target, reduction="mean")
+        elif self.hparams.loss_function == "poisson":
+            loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
+
+        self.log(str(self.hparams.loss_function) + " val_loss", loss)
         return result
     
     # def on_validation_epoch_end(self, validation_step_outputs):
@@ -99,13 +164,45 @@ class Base(pl.LightningModule):
         if self.hparams.task_type == "reconstruction":
             x = batch[0]   # batch_size * (neuron_num*time)
             x_hat = self(x)
-            loss = F.mse_loss(x_hat, x, reduction="mean")
+            
+            pred = x_hat
+            target = x
         elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat = self(x)
-            loss = F.mse_loss(y_hat, y, reduction="mean")
+            
+            pred = y_hat
+            target = y
+        elif self.hparams.task_type == "mask":
+            # x, y, mask_indices = batch
+            # x_hat = self(x)
+
+            # # get the masked part from x_hat to be y_hat
+            # y_hat = torch.zeros(y.shape).to(y.device)
+            # for i in range(mask_indices.shape[0]):
+            #     for j in range(mask_indices.shape[1]):
+            #         y_hat[i, :, j] = x_hat[i, :, mask_indices[i, j]]
+            #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
+
+            x, y, mask_indices_i, mask_indices_j = batch
+            x_hat = self(x)
+
+            # get the masked part from x_hat to be y_hat
+            y_hat = torch.zeros(y.shape).to(y.device)
+            n_sample, mask_size = mask_indices_i.shape
+            for i in range(n_sample):
+                for j in range(mask_size):
+                    y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
+
+            pred = y_hat
+            target = y
+
+        if self.hparams.loss_function == "mse":
+            loss = F.mse_loss(pred, target, reduction="mean")
+        elif self.hparams.loss_function == "poisson":
+            loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
         
-        self.log("test_loss", loss)
+        self.log(str(self.hparams.loss_function) + "test_loss", loss)
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         if self.hparams.task_type == "reconstruction":
@@ -113,9 +210,33 @@ class Base(pl.LightningModule):
             x_hat, attention = self(x)
 
             return x_hat, x, attention
+        
         elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat, attention = self(x)
+
+            return y_hat, y, attention
+        
+        elif self.hparams.task_type == "mask":
+            # x, y, mask_indices = batch
+            # x_hat, attention = self(x)
+
+            # # get the masked part from x_hat to be y_hat
+            # y_hat = torch.zeros(y.shape).to(y.device)
+            # for i in range(mask_indices.shape[0]):
+            #     for j in range(mask_indices.shape[1]):
+            #         y_hat[i, :, j] = x_hat[i, :, mask_indices[i, j]]
+            #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
+
+            x, y, mask_indices_i, mask_indices_j = batch
+            x_hat, attention = self(x)
+
+            # get the masked part from x_hat to be y_hat
+            y_hat = torch.zeros(y.shape).to(y.device)
+            n_sample, mask_size = mask_indices_i.shape
+            for i in range(n_sample):
+                for j in range(mask_size):
+                    y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
 
             return y_hat, y, attention
     
@@ -139,11 +260,13 @@ class Attention_Autoencoder(Base):
         h_layers_2=2,
         dropout=0.2,
         learning_rate=1e-4,
+        scheduler="plateau",
         prediction_mode=False,
         pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
-        task_type = "reconstruction",    # "reconstruction" or "prediction"
+        task_type = "reconstruction",    # "reconstruction" or "prediction" or "mask"
         predict_window_size = 100,
         loss_function = "mse", # "mse" or "poisson"
+        log_input = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -154,11 +277,21 @@ class Attention_Autoencoder(Base):
 
         # MLP_1
 
+        if (task_type == "reconstruction") or (task_type == "mask"):
+            hidden_size_1 = window_size
+        elif task_type == "prediction":
+            hidden_size_1 = window_size - predict_window_size
+
+
         # if task_type == "reconstruction":
+        #     hidden_size_1 = window_size
+
         #     self.fc1 = nn.Sequential(
         #         nn.Linear(window_size, hidden_size_1), nn.ReLU()
         #     )
         # elif task_type == "prediction":
+        #     hidden_size_1 = window_size - predict_window_size       #######################
+
         #     self.fc1 = nn.Sequential(
         #         nn.Linear(window_size - predict_window_size, hidden_size_1), nn.ReLU()
         #     )
@@ -170,7 +303,6 @@ class Attention_Autoencoder(Base):
         #     for layer in range(h_layers_1)
         # )
 
-        hidden_size_1 = window_size - predict_window_size
 
         # Attention
 
@@ -244,7 +376,7 @@ class Attention_Autoencoder(Base):
             for layer in range(h_layers_2)
         )
 
-        if task_type == "reconstruction":
+        if (task_type == "reconstruction") or (task_type == "mask"):
             self.out = nn.Linear(hidden_size_2, window_size)
         elif task_type == "prediction":
             self.out = nn.Linear(hidden_size_2, predict_window_size)
@@ -268,6 +400,7 @@ class Attention_Autoencoder(Base):
             x = self.layer_norm(x)
 
         attention_results = []
+        print('length: ', len(self.attentionlayers))
         for layer in self.attentionlayers:
             x = layer(x)
             if type(x) is tuple:

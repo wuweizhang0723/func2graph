@@ -138,7 +138,8 @@ class Attention(nn.Module):
         # logits_sign = torch.sign(logits)
         # logits = torch.abs(logits)
         # attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
-        attn0 = F.tanh(logits)
+        # attn0 = F.tanh(logits)
+        attn0 = F.sigmoid(logits)
         # multiply attention with sign matrix
         attn = self.attn_dropout(attn0)
 

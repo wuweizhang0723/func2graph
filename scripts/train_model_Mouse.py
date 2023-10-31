@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy import stats
 import matplotlib.pyplot as plt
 import argparse
 import torch
@@ -13,7 +14,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from os import listdir
 
-from func2graph import data, models, baselines
+from func2graph import data, models, baselines, tools
 
 
 
@@ -28,38 +29,30 @@ if __name__ == "__main__":
     parser.add_argument("--out_folder", help="the output folder")
 
     # Data
-    parser.add_argument("--neuron_num", help="the number of neurons", type=int, default=10)
-    parser.add_argument("--dt", help="dt", default=0.001)
-    parser.add_argument("--tau", help="tau", default=0.3)
-    parser.add_argument("--spike_neuron_num", default=2)
-    parser.add_argument("--spike_input", default=5)
 
-    parser.add_argument("--weight_scale", default=1)
-    parser.add_argument("--init_scale", default=1)
-
-    parser.add_argument("--total_time", help="total time", default=30000)
-    parser.add_argument("--data_random_seed", help="data random seed", default=42)
-
-    parser.add_argument("--weight_type", default="random")    # "random"
-
-    # parser.add_argument("--train_data_size", default=20000)
     parser.add_argument("--window_size", default=200)
 
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
 
-    parser.add_argument("--task_type", default="reconstruction")  # "reconstruction" or "prediction" or "baseline_2"
+    parser.add_argument("--task_type", default="reconstruction")  # "reconstruction" or "prediction" or "baseline_2" or "mask"
     parser.add_argument("--predict_window_size", default=100)
+    parser.add_argument("--mask_size", default=5)
 
-    parser.add_argument("--data_type", default="wuwei")   # "ziyu"
+    parser.add_argument("--data_type", default="mouse")
+
+    parser.add_argument("--split_ratio", default=0.8)
+
+    parser.add_argument("--normalization", default="none")   # "none" or "session" or "neuron" or "log"
 
     # Model
+
     parser.add_argument("--model_random_seed", default=42)
 
     parser.add_argument("--hidden_size_1", help="hidden size 1", default=128)
     parser.add_argument("--h_layers_1", help="h layers 1", default=2)
     
-    parser.add_argument("--hidden_size_1_S", help="hidden size 1", default=128)
-    parser.add_argument("--hidden_size_1_T", help="hidden size 1", default=128)
+    # parser.add_argument("--hidden_size_1_S", help="hidden size 1", default=128)
+    # parser.add_argument("--hidden_size_1_T", help="hidden size 1", default=128)
 
     parser.add_argument("--heads", help="heads", default=1)
     parser.add_argument("--attention_layers", help="attention layers", default=1)
@@ -74,7 +67,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--pos_enc_type", default="none")
 
-    parser.add_argument("--attention_type", default="spatial_temporal_1")  # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal_3" or "spatial"
+    parser.add_argument("--loss_function", default="mse")   # "mse" or "poisson"
+
+    # parser.add_argument("--attention_type", default="spatial_temporal_1")  # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal_3" or "spatial"
 
     # Baseline_2
 
@@ -87,37 +82,33 @@ if __name__ == "__main__":
     out_folder = args.out_folder
 
     # Data
-    neuron_num = int(args.neuron_num)
-    dt = float(args.dt)
-    tau = float(args.tau)
-    spike_neuron_num = int(args.spike_neuron_num)
-    spike_input = int(args.spike_input)
 
-    weight_scale = float(args.weight_scale)
-    init_scale = float(args.init_scale)
-
-    total_time = int(args.total_time)
-    data_random_seed = int(args.data_random_seed)
-
-    weight_type = args.weight_type
-
-    # train_data_size = int(args.train_data_size)
     window_size = int(args.window_size)
 
     batch_size = int(args.batch_size)
 
     task_type = args.task_type
     predict_window_size = int(args.predict_window_size)
+    mask_size = int(args.mask_size)
 
     data_type = args.data_type
+
+    split_ratio = float(args.split_ratio)
+
+    normalization = args.normalization
+
+    if normalization == "log":
+        log_input = True
+    else:
+        log_input = False
 
     # Model
     model_random_seed = int(args.model_random_seed)
 
     hidden_size_1 = int(args.hidden_size_1)
     h_layers_1 = int(args.h_layers_1)
-    hidden_size_1_S = int(args.hidden_size_1_S)
-    hidden_size_1_T = int(args.hidden_size_1_T)
+    # hidden_size_1_S = int(args.hidden_size_1_S)
+    # hidden_size_1_T = int(args.hidden_size_1_T)
 
     heads = int(args.heads)
     attention_layers = int(args.attention_layers)
@@ -132,7 +123,9 @@ if __name__ == "__main__":
 
     pos_enc_type = args.pos_enc_type
 
-    attention_type = args.attention_type
+    # attention_type = args.attention_type
+
+    loss_function = args.loss_function
 
 
 
@@ -142,25 +135,9 @@ if __name__ == "__main__":
         + "_"
         + data_type
         + "_"
-        + str(neuron_num)
+        + normalization
         + "_"
-        + str(dt)
-        + "_"
-        + str(tau)
-        + "_"
-        + str(spike_neuron_num)
-        + "_"
-        + str(spike_input)
-        + "_"
-        + str(weight_scale)
-        + "_"
-        + str(init_scale)
-        + "_"
-        + str(total_time)
-        + "_"
-        + str(data_random_seed)
-        + "_"
-        + weight_type
+        + str(split_ratio)
         + "_"
         + str(window_size)
         + "_"
@@ -169,14 +146,6 @@ if __name__ == "__main__":
         + str(predict_window_size)
         + "_"
         + str(model_random_seed)
-        + "_"
-        + str(hidden_size_1)
-        + "_"
-        + str(hidden_size_1_S)
-        + "_"
-        + str(hidden_size_1_T)
-        + "_"
-        + str(h_layers_1)
         + "_"
         + str(heads)
         + "_"
@@ -192,35 +161,33 @@ if __name__ == "__main__":
         + "_"
         + pos_enc_type
         + "_"
-        + attention_type
+        + str(hidden_size_1)
+        + "_"
+        + str(h_layers_1)
+        + "_"
+        + str(mask_size)
+        + "_"
+        + loss_function
     )
 
     checkpoint_path = output_path
     log_path = out_folder + "/log"
 
     
-    trainloader, validloader, weight_matrix = data.generate_simulation_data(
-        neuron_num=neuron_num,
-        dt=dt,
-        tau=tau,
-        spike_neuron_num=spike_neuron_num,
-        spike_input=spike_input,
-        weight_scale=weight_scale,
-        init_scale=init_scale,
-        total_time=total_time,
-        data_random_seed=data_random_seed,
-        weight_type=weight_type,
+    trainloader, validloader, weight_matrix, neuron_types = data.generate_simulation_data(
+        # train_data_size=train_data_size,
         window_size=window_size,
         batch_size=batch_size,
+        split_ratio=split_ratio,
         task_type=task_type,
         predict_window_size=predict_window_size,
         data_type=data_type,
+        mask_size=mask_size,
+        normalization=normalization,
     )
-    if data_type == "wuwei" or data_type == "ziyu":
-        weight_matrix = weight_matrix.detach().numpy()
-    elif data_type == "c_elegans":
-        weight_matrix_E = weight_matrix[0].detach().numpy()
-        weight_matrix_Chem = weight_matrix[1].detach().numpy()
+
+    neuron_num = len(neuron_types)
+    print("neuron_num: ", neuron_num)
 
     if model_type == "Attention_Autoencoder":
         single_model = models.Attention_Autoencoder(
@@ -239,13 +206,17 @@ if __name__ == "__main__":
             pos_enc_type=pos_enc_type,
             task_type=task_type,
             predict_window_size=predict_window_size,
+            loss_function=loss_function,
+            log_input=log_input,
         )
     elif model_type == "Baseline_2":
         single_model = baselines.Baseline_2(
             neuron_num=neuron_num,
             learning_rate=learning_rate,
-            simulated_network_type=2,
+            simulated_network_type=1,
             model_random_seed=model_random_seed,
+            loss_function=loss_function,
+            log_input=log_input,
         )
     elif model_type == "Spatial_Temporal_Attention_Model":
         single_model = models.Spatial_Temporal_Attention_Model(
@@ -253,10 +224,10 @@ if __name__ == "__main__":
             neuron_num=neuron_num,
             window_size=window_size,
             predict_window_size = predict_window_size,
-            hidden_size_1_T = hidden_size_1_T,
-            hidden_size_1_S = hidden_size_1_S,
-            h_layers_1=h_layers_1,
-            attention_type = attention_type,
+            # hidden_size_1_T = hidden_size_1_T,
+            # hidden_size_1_S = hidden_size_1_S,
+            # h_layers_1=h_layers_1,
+            # attention_type = attention_type,
             pos_enc_type = pos_enc_type,
             heads=heads,
             hidden_size_2=hidden_size_2,
@@ -267,9 +238,9 @@ if __name__ == "__main__":
         )
 
 
-    es = EarlyStopping(monitor="val_loss", patience=12)  ###########
+    es = EarlyStopping(monitor=loss_function+" val_loss", patience=20)  ###########
     checkpoint_callback = ModelCheckpoint(
-        checkpoint_path, monitor="val_loss", mode="min", save_top_k=1
+        checkpoint_path, monitor=loss_function+" val_loss", mode="min", save_top_k=1
     )
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")
@@ -280,7 +251,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=500,
+        max_epochs=400,
     )
 
     trainer.fit(single_model, trainloader, validloader)
@@ -288,11 +259,11 @@ if __name__ == "__main__":
 
 
 
-    # Add evaluation after training：
+    # Add evaluation after training： -------------------------------------------------------------
     # 1.ground-truth W plot 
     # 2.estimated W plot (train & val)
     # 3.validation loss 
-    # 4.activity prediction plot
+    # 4.activity prediction plot (scatter plot)
 
     if model_type == "Attention_Autoencoder" or model_type == "Spatial_Temporal_Attention_Model":
         if model_type == "Attention_Autoencoder":
@@ -312,6 +283,8 @@ if __name__ == "__main__":
                 pos_enc_type=pos_enc_type,
                 task_type=task_type,
                 predict_window_size=predict_window_size,
+                loss_function=loss_function,
+                log_input=log_input,
                 prediction_mode=True,
             )
         elif model_type == "Spatial_Temporal_Attention_Model":
@@ -320,10 +293,10 @@ if __name__ == "__main__":
                 neuron_num=neuron_num,
                 window_size=window_size,
                 predict_window_size = predict_window_size,
-                hidden_size_1_T=hidden_size_1_T,
-                hidden_size_1_S=hidden_size_1_S,
-                h_layers_1=h_layers_1,
-                attention_type = attention_type,
+                # hidden_size_1_T=hidden_size_1_T,
+                # hidden_size_1_S=hidden_size_1_S,
+                # h_layers_1=h_layers_1,
+                # attention_type = attention_type,
                 pos_enc_type = pos_enc_type,
                 heads=heads,
                 hidden_size_2=hidden_size_2,
@@ -350,12 +323,25 @@ if __name__ == "__main__":
             predictions.append(x_hat)
             ground_truths.append(x)
             attentions.append(attention)
+
+            if i % 100 == 0:
+                print("Predicting batch: ", i)
         
         predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
         ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
         attentions = torch.cat(attentions, dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+
+
+        # plot scatter plot of prediction vs. ground truth (flatten)
+        # plt.scatter(ground_truths.flatten(), predictions.flatten(), s=0.1)
+        # plt.xlabel("Ground Truth")
+        # plt.ylabel("Prediction")
+        # corr = stats.pearsonr(ground_truths.flatten(), predictions.flatten())[0]
+        # plt.title("Correlation: " + str(corr))
+        # plt.savefig(output_path + "/Prediction_vs_Ground_Truth_(train).png")
+        # plt.close()
         
-        # # get average attention across 
+        # get average attention across 
         avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
         W = avg_attention
         
@@ -364,8 +350,10 @@ if __name__ == "__main__":
         predict_mode_model = baselines.Baseline_2(
             neuron_num=neuron_num,
             learning_rate=learning_rate,
-            simulated_network_type=2,
+            simulated_network_type=1,
             model_random_seed=model_random_seed,
+            loss_function=loss_function,
+            log_input=log_input,
         )
         model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
 
@@ -374,56 +362,96 @@ if __name__ == "__main__":
         W = model_checkpoint.W.weight.data
         W = W.cpu().detach().numpy()
 
-
-    if data_type == "wuwei" or data_type == "ziyu":
-        estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
-        estimation_corr_abs = np.corrcoef(W.flatten(), np.abs(weight_matrix).flatten())[0, 1]
-
-        plt.imshow(W)
-        plt.colorbar()
-        plt.title("Estimated W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
-        plt.savefig(output_path + "/Estimated_W.png")
+        train_results = trainer.predict(predict_mode_model, dataloaders=[trainloader], ckpt_path=model_checkpoint_path)
+        # concat train results
+        train_results = torch.cat(train_results, dim=0).cpu().detach().numpy()
+        predictions = train_results[:, :neuron_num]
+        ground_truths = train_results[:, neuron_num:]
+        # plot scatter plot of prediction vs. ground truth (flatten)
+        corr = stats.pearsonr(ground_truths.flatten(), predictions.flatten())[0]
+        plt.scatter(ground_truths.flatten(), predictions.flatten(), s=0.1)
+        plt.title("Correlation: " + str(corr))
+        plt.xlabel("Ground Truth")
+        plt.ylabel("Prediction")
+        plt.savefig(output_path + "/Prediction_vs_Ground_Truth_(train).png")
         plt.close()
 
-        plt.imshow(weight_matrix)
-        plt.colorbar()
-        plt.title("Ground-truth W")
-        plt.savefig(output_path + "/Ground_truth_W.png")
-        plt.close()
-
-        # save estimated W to npy file
-        np.save(output_path + "/" + "Estimated_W_" + str(model_random_seed) + ".npy", W)
     
-    elif data_type == "c_elegans":
-        estimation_corr_E = np.corrcoef(W.flatten(), weight_matrix_E.flatten())[0, 1]
-        estimation_corr_Chem = np.corrcoef(W.flatten(), weight_matrix_Chem.flatten())[0, 1]
 
-        estimation_corr_E_abs = np.corrcoef(np.abs(W).flatten(), weight_matrix_E.flatten())[0, 1]
-        estimation_corr_Chem_abs = np.corrcoef(np.abs(W).flatten(), weight_matrix_Chem.flatten())[0, 1]
+    print("W shape: ", W.shape)
+    neuron_types_result = []
+    for i in range(len(neuron_types)):
+        # split by "-"
+        neuron_types_result.append(neuron_types[i].split("-")[0])
 
-        plt.imshow(W)
-        plt.colorbar()
-        plt.title("Estimated W" + " (corr_E: " + str(estimation_corr_E)[:6] + ") " + " (corr_Chem: " + str(estimation_corr_Chem)[:6] + ")")
-        plt.savefig(output_path + "/Estimated_W.png")
-        plt.close()
+    connectivity_matrix_new, connectivity_matrix_cell_type_level, cell_type2cell_type_index = tools.group_connectivity_matrix_by_cell_type(W, neuron_types_result)
+    print('cell_type2cell_type_index: ', cell_type2cell_type_index)
 
-        plt.imshow(np.abs(W))
-        plt.colorbar()
-        plt.title("Estimated W" + " (corr_E_abs: " + str(estimation_corr_E_abs)[:6] + ") " + " (corr_Chem_abs: " + str(estimation_corr_Chem_abs)[:6] + ")")
-        plt.savefig(output_path + "/Estimated_W_abs.png")
-        plt.close()
 
-        plt.imshow(weight_matrix_E)
-        plt.colorbar()
-        plt.title("Ground-truth W_E")
-        plt.savefig(output_path + "/Ground_truth_W_E.png")
-        plt.close()
+    # save onnectivity_matrix_cell_type_level into npy
+    np.save(output_path + "/Estimated_W_cell_type_level.npy", connectivity_matrix_cell_type_level)
 
-        plt.imshow(weight_matrix_Chem)
-        plt.colorbar()
-        plt.title("Ground-truth W_Chem")
-        plt.savefig(output_path + "/Ground_truth_W_Chem.png")
-        plt.close()
 
-        # save estimated W to npy file
-        np.save(output_path + "/" + "Estimated_W_" + str(model_random_seed) + ".npy", W)
+    plt.imshow(connectivity_matrix_cell_type_level, interpolation='nearest')
+    cell_type_labels = cell_type2cell_type_index.keys()
+    plt.xticks(np.arange(len(cell_type_labels)), cell_type_labels)
+    plt.yticks(np.arange(len(cell_type_labels)), cell_type_labels)
+    plt.xlabel("Presynaptic")
+    plt.ylabel("Postsynaptic")
+    plt.title("Estimated W (cell type level)")
+    plt.colorbar()
+    plt.show()
+    plt.savefig(output_path + "/Estimated_W_cell_type_level.png")
+    plt.close()
+
+    # abs
+    plt.imshow(np.abs(connectivity_matrix_cell_type_level), interpolation='nearest')
+    plt.xticks(np.arange(len(cell_type_labels)), cell_type_labels)
+    plt.yticks(np.arange(len(cell_type_labels)), cell_type_labels)
+    plt.xlabel("Presynaptic")
+    plt.ylabel("Postsynaptic")
+    plt.title("abs Estimated W (cell type level)")
+    plt.colorbar()
+    plt.show()
+    plt.savefig(output_path + "/Estimated_W_cell_type_level_abs.png")
+    plt.close()
+
+    # negate
+    plt.imshow(-connectivity_matrix_cell_type_level, interpolation='nearest')
+    plt.xticks(np.arange(len(cell_type_labels)), cell_type_labels)
+    plt.yticks(np.arange(len(cell_type_labels)), cell_type_labels)
+    plt.xlabel("Presynaptic cell type")
+    plt.ylabel("Postsynaptic cell type")
+    plt.title("negate Estimated W (cell type level)")
+    plt.colorbar()
+    plt.show()
+    plt.savefig(output_path + "/Estimated_W_cell_type_level_negate.png")
+    plt.close()
+
+    # plot
+    plt.imshow(connectivity_matrix_new, cmap='bone', interpolation='nearest')
+    plt.colorbar()
+    # plt.plot((0, 0), (0, 291), c='red', linewidth=5)
+    # plt.plot((0, 291), (0, 0), c='red', linewidth=5)
+
+    # plt.plot((0, 0), (291, 291+84), c='blue', linewidth=5)
+    # plt.plot((291, 291+84), (0, 0), c='blue', linewidth=5)
+
+    # plt.plot((0, 0), (291+84, 291+84+37), c='green', linewidth=5)
+    # plt.plot((291+84, 291+84+37), (0, 0), c='green', linewidth=5)
+
+    # plt.plot((0, 0), (291+84+37, 291+84+37+16), c='yellow', linewidth=5)
+    # plt.plot((291+84+37, 291+84+37+16), (0, 0), c='yellow', linewidth=5)
+
+    # plt.plot((0, 0), (291+84+37+16, 291+84+37+16+25), c='purple', linewidth=5)
+    # plt.plot((291+84+37+16, 291+84+37+16+25), (0, 0), c='purple', linewidth=5)
+
+    # plt.plot((0, 0), (291+84+37+16+25, 291+84+37+16+25+2), c='orange', linewidth=5)
+    # plt.plot((291+84+37+16+25, 291+84+37+16+25+2), (0, 0), c='orange', linewidth=5)
+
+    # plt.plot((0, 0), (291+84+37+16+25+2, 291+84+37+16+25+2+4), c='black', linewidth=5)
+    # plt.plot((291+84+37+16+25+2, 291+84+37+16+25+2+4), (0, 0), c='black', linewidth=5)
+
+    plt.xlabel(str(cell_type_labels))
+    plt.savefig(output_path + "/Estimated_W.png")
+    plt.close()

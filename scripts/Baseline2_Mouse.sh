@@ -1,0 +1,1 @@
+python train_model_Mouse.py --out_folder='../output/10_20_Baseline_2_Mouse/' --model_type=Baseline_2 --data_type=mouse --normalization=neuron --task_type=baseline_2 --learning_rate=5e-5 --model_random_seed=42 > out.out

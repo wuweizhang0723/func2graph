@@ -107,15 +107,17 @@ def generate_simulation_data(
     total_time = 30000,
     data_random_seed=42,
     weight_type="random",
-    train_data_size = 20000,
-    window_size = 200,
+    # train_data_size = 20000,
+    window_size = 200, # -------------------------------
     batch_size = 32,
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
-    task_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline_2"
+    task_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline_2" or "mask"
     predict_window_size = 100,
-    data_type = "wuwei", #"ziyu", "c_elegans"
+    data_type = "wuwei", #"ziyu", "c_elegans", "mouse"
+    mask_size = 100,    # the number of elements to mask for each sample (each window)
+    normalization = "session",   # "neuron" or "session" or "none" or "log"
 ) -> DataLoader:
     """
     Generate dataset.
@@ -162,6 +164,16 @@ def generate_simulation_data(
 
         train_data_size = 1000  ########################
 
+    elif data_type == "mouse":
+        directory = '../data/Mouse/Bugeon/'
+        date_exp = 'SB025/2019-10-07/'
+        input_setting = 'Blank/01/'
+
+        data, neuron_ttypes, connectivity = mouse_data_simulator(directory, date_exp, input_setting, normalization)
+        total_time = data.shape[1]
+        neuron_num = data.shape[0]
+        data = torch.from_numpy(data).float()
+
     print(data.shape)
 
     # Normalize on entire dataset
@@ -184,7 +196,7 @@ def generate_simulation_data(
     train_data = data[:, :train_data_length]
     val_data = data[:, train_data_length:]
 
-    if (task_type == "reconstruction") or (task_type == "prediction"):
+    if (task_type == "reconstruction") or (task_type == "prediction") or (task_type == "mask"):
         val_data_size = val_data.shape[1] - window_size + 1
         val_start_indices = torch.arange(val_data_size)
 
@@ -198,13 +210,74 @@ def generate_simulation_data(
         print("val_data.shape: ", val_data.shape)
         print(val_data[-1])
 
-        train_start_indices = torch.randint(low=0, high=train_data_length-window_size+1, size=(train_data_size,))
-        train_datar_result = []
+        # train_start_indices = torch.randint(low=0, high=train_data_length-window_size+1, size=(train_data_size,))
+        # train_datar_result = []
+        # for i in range(train_data_size):
+        #     index = train_start_indices[i]
+        #     sample = train_data[:, index:index+window_size]
+        #     train_datar_result.append(sample.view(1, neuron_num, window_size))
+        # train_data = torch.cat(train_datar_result, dim=0)
+
+        train_data_size = train_data_length - window_size + 1
+        train_start_indices = torch.arange(train_data_size)
+
+        train_data_result = []
         for i in range(train_data_size):
             index = train_start_indices[i]
             sample = train_data[:, index:index+window_size]
-            train_datar_result.append(sample.view(1, neuron_num, window_size))
-        train_data = torch.cat(train_datar_result, dim=0)
+            train_data_result.append(sample.view(1, neuron_num, window_size))
+        train_data = torch.cat(train_data_result, dim=0)
+
+        if (task_type == "mask"):
+            # # randomly choose mask_size time steps to mask for each sample
+            # train_mask_indices = torch.randint(low=0, high=window_size, size=(train_data_size, mask_size))
+            # # train_mask_indices = torch.randint(low=0, high=neuron_num, size=(train_data_size, mask_size))
+            # # mask all elements in mask_indices to be 0
+            # train_x = train_data.clone()
+            # train_y = torch.zeros((train_data_size, neuron_num, mask_size))
+            # # train_y = torch.zeros((train_data_size, mask_size, window_size))
+            # for i in range(train_data_size):
+            #     for j in range(mask_size):
+            #         train_x[i, :, train_mask_indices[i][j]] = 0
+            #         train_y[i, :, j] = train_data[i, :, train_mask_indices[i][j]]
+            #         # train_x[i, train_mask_indices[i][j], :] = 0
+            #         # train_y[i, j, :] = train_data[i, train_mask_indices[i][j], :]
+
+            # val_mask_indices = torch.randint(low=0, high=window_size, size=(val_data_size, mask_size))
+            # # val_mask_indices = torch.randint(low=0, high=neuron_num, size=(val_data_size, mask_size))
+            # val_x = val_data.clone()
+            # val_y = torch.zeros((val_data_size, neuron_num, mask_size))
+            # # val_y = torch.zeros((val_data_size, mask_size, window_size))
+            # for i in range(val_data_size):
+            #     for j in range(mask_size):
+            #         val_x[i, :, val_mask_indices[i][j]] = 0
+            #         val_y[i, :, j] = val_data[i, :, val_mask_indices[i][j]]
+            #         # val_x[i, val_mask_indices[i][j], :] = 0
+            #         # val_y[i, j, :] = val_data[i, val_mask_indices[i][j], :]
+
+
+            # randomly choose mask_size elements to mask for each sample
+            train_mask_indices_i = torch.randint(low=0, high=neuron_num, size=(train_data_size, mask_size))
+            train_mask_indices_j = torch.randint(low=0, high=window_size, size=(train_data_size, mask_size))
+            # mask all elements in mask_indices to be 0
+            train_x = train_data.clone()
+            train_y = torch.zeros((train_data_size, mask_size))
+            for i in range(train_data_size):
+                for j in range(mask_size):
+                    train_x[i, train_mask_indices_i[i][j], train_mask_indices_j[i][j]] = 0
+                    train_y[i, j] = train_data[i, train_mask_indices_i[i][j], train_mask_indices_j[i][j]]
+
+
+            val_mask_indices_i = torch.randint(low=0, high=neuron_num, size=(val_data_size, mask_size))
+            val_mask_indices_j = torch.randint(low=0, high=window_size, size=(val_data_size, mask_size))
+            val_x = val_data.clone()
+            val_y = torch.zeros((val_data_size, mask_size))
+            for i in range(val_data_size):
+                for j in range(mask_size):
+                    val_x[i, val_mask_indices_i[i][j], val_mask_indices_j[i][j]] = 0
+                    val_y[i, j] = val_data[i, val_mask_indices_i[i][j], val_mask_indices_j[i][j]]
+
+
 
     elif task_type == "baseline_2":  
         # Baseline_2 takes in activity from one previous time step to predict for the next time step
@@ -224,6 +297,10 @@ def generate_simulation_data(
     elif task_type == "baseline_2":
         train_dataset = TensorDataset(train_x, train_y)
         val_dataset = TensorDataset(val_x, val_y)
+    elif task_type == "mask":
+        train_dataset = TensorDataset(train_x, train_y, train_mask_indices_i, train_mask_indices_j)
+        val_dataset = TensorDataset(val_x, val_y, val_mask_indices_i, val_mask_indices_j)
+
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
@@ -234,6 +311,8 @@ def generate_simulation_data(
         return train_dataloader, val_dataloader, simulator.W_ij
     elif data_type == "c_elegans":
         return train_dataloader, val_dataloader, (torch.from_numpy(S_E), torch.from_numpy(S_Chem))
+    elif data_type == "mouse":
+        return train_dataloader, val_dataloader, torch.from_numpy(connectivity), neuron_ttypes
 
 
 
@@ -446,11 +525,11 @@ def mouse_data_simulator(directory, date_exp, input_setting, session_normalizati
 
     # load ground truth weight matrix
 
-    return activity, []
+    return activity, neuron_ttypes, np.zeros((activity.shape[0], activity.shape[0]))   ######### TODO
 
 
 
-def load_mouse_data_session(directory, date_exp, input_setting, session_normalization):
+def load_mouse_data_session(directory, date_exp, input_setting, normalization):
     gene_count = np.load(directory + date_exp + 'neuron.gene_count.npy')
     UniqueID = np.load(directory + date_exp + 'neuron.UniqueID.npy')
 
@@ -497,13 +576,22 @@ def load_mouse_data_session(directory, date_exp, input_setting, session_normaliz
 
 
     # normalization
-    if session_normalization:
+    if normalization == 'session':
         activity_mean = np.mean(frame_activity)
         activity_std = np.std(frame_activity)
-    else:
+
+        activity_norm = (frame_activity - activity_mean)/activity_std
+    elif normalization == 'neuron':
         activity_mean = np.mean(frame_activity, axis = 0)
         activity_std = np.std(frame_activity, axis = 0)
-    activity_norm = (frame_activity - activity_mean)/activity_std
+
+        activity_norm = (frame_activity - activity_mean)/activity_std
+    elif normalization == 'log':
+        activity_norm = np.log10(frame_activity + 1)
+    else:
+        print('no normalization')
+
+        activity_norm = frame_activity
 
     # if behavior_normalization:
     #     running_speed_resize = (running_speed_resize - np.mean(running_speed_resize, axis = 0))/np.std(running_speed_resize, axis = 0)

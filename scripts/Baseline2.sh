@@ -1,0 +1,1 @@
+python train_model.py --out_folder='../output/10_22_Baseline_2_simulated_data/' --model_type=Baseline_2 --neuron_num=200 --data_type=wuwei --task_type=baseline_2 --learning_rate=5e-5 --weight_type=random --model_random_seed=42 > out.out

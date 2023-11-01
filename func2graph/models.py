@@ -674,3 +674,69 @@ class Spatial_Temporal_Attention_Model(Base):
             return x
 
         
+
+
+
+
+
+##############################################################################################################
+# For Attention with Constraint Model
+##############################################################################################################
+
+class Base_2(pl.LightningModule):
+    def __init__(self,) -> None:
+        super().__init__()
+        self.save_hyperparameters()
+
+    def forward(self, x):
+        return NotImplementedError
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=1e-5)
+
+        if self.hparams.scheduler == "plateau":
+            lr_scheduler = {
+                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    # TODO: add an argument to control the patience
+                    optimizer,
+                    patience=3,
+                ),
+                "monitor": str(self.hparams.loss_function) + " val_loss",
+            }
+        elif self.hparams.scheduler == "cycle":
+            lr_scheduler = {
+                "scheduler": torch.optim.lr_scheduler.CyclicLR(
+                    optimizer,
+                    base_lr=self.hparams.learning_rate / 2,
+                    max_lr=self.hparams.learning_rate * 2,
+                    cycle_momentum=False,
+                ),
+                "interval": "step",
+            }
+        else:
+            print("No scheduler is used")
+
+        return [optimizer], [lr_scheduler]
+    
+    def training_step(self, batch, batch_idx):
+        x, neuron_ids, cell_type_ids = batch         # entire window
+
+        # Make the last time step as the target
+        target = x[:, :, -1].clone()
+        pred, neuron_level_attention, cell_type_level_constraint = self(x[:, :, :-1], neuron_ids)
+
+        # Expand cell_type_level_constraint to neuron level
+        # Neurons with the same pre cell type and post cell type have the same constraint
+
+        # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
+        
+        if self.hparams.loss_function == "mse":
+            loss = F.mse_loss(pred, target, reduction="mean")
+        elif self.hparams.loss_function == "poisson":
+            loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
+        elif self.hparams.loss_function == "gaussian":
+            var = torch.ones(pred.shape, requires_grad=True).to(pred.device)  ##############################
+            loss = F.gaussian_nll_loss(pred, target, reduction="mean", var=var)
+
+        self.log(str(self.hparams.loss_function) + " train_loss", loss)
+        return loss

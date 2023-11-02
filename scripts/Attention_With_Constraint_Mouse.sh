@@ -1,0 +1,1 @@
+python train_model_Mouse_Attention_with_Constraint.py --out_folder='../output/11_1_AWC_Mouse_predict/' --model_type=Attention_With_Constraint --window_size=200 --predict_window_size=1 --normalization=session --model_random_seed=42 --dim_key=64 --hidden_size_2=128 --h_layers_2=2 --learning_rate=1e-4 > out.out

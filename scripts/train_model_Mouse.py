@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--pos_enc_type", default="none")
 
-    parser.add_argument("--loss_function", default="mse")   # "mse" or "poisson"
+    parser.add_argument("--loss_function", default="mse")   # "mse" or "poisson" or "gaussian"
 
     # parser.add_argument("--attention_type", default="spatial_temporal_1")  # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal_3" or "spatial"
 

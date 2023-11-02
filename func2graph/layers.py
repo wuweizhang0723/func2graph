@@ -83,7 +83,6 @@ class PositionalEncoding(nn.Module):
 class Attention(nn.Module):
     def __init__(
         self,
-        neuron_num,
         dim,  # the input and output has shape (batch_size, len, dim) = (b, n, dim)
         *,
         heads=8,

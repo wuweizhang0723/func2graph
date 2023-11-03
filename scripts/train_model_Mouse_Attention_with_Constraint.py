@@ -56,6 +56,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--loss_function", default="mse")   # "mse" or "poisson" or "gaussian"
 
+    parser.add_argument("--constraint_loss_weight", default=1)
+
 
 
     args = parser.parse_args()
@@ -97,6 +99,8 @@ if __name__ == "__main__":
 
     loss_function = args.loss_function
 
+    constraint_loss_weight = float(args.constraint_loss_weight)
+
 
     output_path = (
         out_folder
@@ -129,6 +133,8 @@ if __name__ == "__main__":
         + str(learning_rate)
         + "_"
         + loss_function
+        + "_"
+        + str(constraint_loss_weight)
     )
 
     checkpoint_path = output_path
@@ -158,10 +164,13 @@ if __name__ == "__main__":
         learning_rate=learning_rate,
         loss_function=loss_function,
         log_input=log_input,
+        constraint_loss_weight=constraint_loss_weight,
     )
 
+    print(single_model.cell_type_level_constraint.cpu().detach().numpy())
 
-    es = EarlyStopping(monitor="VAL_sum_loss", patience=20)  ###########
+
+    es = EarlyStopping(monitor="VAL_sum_loss", patience=10)  ###########
     checkpoint_callback = ModelCheckpoint(
         checkpoint_path, monitor="VAL_sum_loss", mode="min", save_top_k=1
     )
@@ -178,3 +187,16 @@ if __name__ == "__main__":
     )
 
     trainer.fit(single_model, train_dataloader, val_dataloader)
+
+    cell_type_level_constraint = single_model.cell_type_level_constraint.cpu().detach().numpy()
+
+    # plot
+    plt.imshow(cell_type_level_constraint, interpolation="nearest")
+    plt.colorbar()
+    plt.xlabel("Presynaptic cell type")
+    plt.ylabel("Postsynaptic cell type: " + str(cell_type2id))
+    plt.title("Cell type level constraint")
+    # plt.xticks(np.arange(len(cell_type2id)), cell_type2id.keys(), rotation=45)
+    # plt.yticks(np.arange(len(cell_type2id)), cell_type2id.keys())
+    plt.savefig(output_path + "/cell_type_level_constraint.png")
+    plt.close()

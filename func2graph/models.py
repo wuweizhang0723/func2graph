@@ -720,7 +720,10 @@ class Base_2(pl.LightningModule):
         return [optimizer], [lr_scheduler]
     
     def training_step(self, batch, batch_idx):
+        # print("self.cell_type_level_constraint gradient: ", self.cell_type_level_constraint.grad)
+
         x, neuron_ids, cell_type_ids = batch         # x is entire window
+        print("unique num cell types: ", np.unique(cell_type_ids[0].clone().detach().cpu().numpy()))
         x = x.squeeze(0)                 # remove the fake batch_size
         neuron_ids = neuron_ids.squeeze(0)
         cell_type_ids = cell_type_ids.squeeze(0)
@@ -733,27 +736,25 @@ class Base_2(pl.LightningModule):
         cell_type_ids_np = cell_type_ids[0].clone().detach().cpu().numpy()
         expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
         # loop over unique cell types
-        num_cell_types = len(np.unique(cell_type_ids_np))
 
-        # cell_type_level_constraint = cell_type_level_constraint.cpu()
-
-        for i in range(num_cell_types):
+        for i in list(np.unique(cell_type_ids_np)):
             # find the neurons with the same cell type
             neuron_ids_with_same_cell_type_i = np.where(cell_type_ids_np == i)[0]
-            for j in range(num_cell_types):
+            for j in list(np.unique(cell_type_ids_np)):
                 # find the neurons with the same cell type
                 neuron_ids_with_same_cell_type_j = np.where(cell_type_ids_np == j)[0]
                 # Assign the same constraint to the neurons with the same cell type
                 expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_i, neuron_ids_with_same_cell_type_j.reshape(-1,1)] = cell_type_level_constraint[i, j]
                 expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_j, neuron_ids_with_same_cell_type_i.reshape(-1,1)] = cell_type_level_constraint[j, i]
 
-            if i % 100 == 0:
-                print("i: ", i)
-
+    
+        print('num zeros in expanded_cell_type_level_constraint: ', torch.sum(expanded_cell_type_level_constraint == 0))
+    
         # Expand the first dimension of expanded_cell_type_level_constraint to batch_size
         expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
         print('eeeee', expanded_cell_type_level_constraint.requires_grad)
         print('kkkkkk', cell_type_level_constraint.requires_grad)
+        print('aaaaaaa', neuron_level_attention.requires_grad)
 
         # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
         var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device)
@@ -767,10 +768,10 @@ class Base_2(pl.LightningModule):
             var = torch.ones(pred.shape, requires_grad=True).to(pred.device)  ##############################
             loss = F.gaussian_nll_loss(pred, target, reduction="mean", var=var)
 
-        self.log("TRAIN_constraint_loss", constraint_loss)
+        self.log("TRAIN_constraint_loss", constraint_loss * self.hparams.constraint_loss_weight)
         self.log("TRAIN_" + str(self.hparams.loss_function) + "_loss", loss)
-        self.log("TRAIN_sum_loss", loss + constraint_loss)
-        return loss + constraint_loss
+        self.log("TRAIN_sum_loss", loss + constraint_loss * self.hparams.constraint_loss_weight)
+        return loss + constraint_loss * self.hparams.constraint_loss_weight
     
     def validation_step(self, batch, batch_idx):
         x, neuron_ids, cell_type_ids = batch         # x is entire window
@@ -786,23 +787,18 @@ class Base_2(pl.LightningModule):
         cell_type_ids_np = cell_type_ids[0].clone().detach().cpu().numpy()
         expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
         # loop over unique cell types
-        num_cell_types = len(np.unique(cell_type_ids_np))
 
-        # cell_type_level_constraint = cell_type_level_constraint.cpu()
-
-        for i in range(num_cell_types):
+        for i in list(np.unique(cell_type_ids_np)):
             # find the neurons with the same cell type
             neuron_ids_with_same_cell_type_i = np.where(cell_type_ids_np == i)[0]
-            for j in range(num_cell_types):
+            for j in list(np.unique(cell_type_ids_np)):
                 # find the neurons with the same cell type
                 neuron_ids_with_same_cell_type_j = np.where(cell_type_ids_np == j)[0]
                 # Assign the same constraint to the neurons with the same cell type
                 expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_i, neuron_ids_with_same_cell_type_j.reshape(-1,1)] = cell_type_level_constraint[i, j]
                 expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_j, neuron_ids_with_same_cell_type_i.reshape(-1,1)] = cell_type_level_constraint[j, i]
 
-            if i % 100 == 0:
-                print("i: ", i)
-
+            
         expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
 
         var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device)
@@ -816,10 +812,10 @@ class Base_2(pl.LightningModule):
             var = torch.ones(pred.shape, requires_grad=True).to(pred.device)  ##############################
             loss = F.gaussian_nll_loss(pred, target, reduction="mean", var=var)
 
-        self.log("VAL_constraint_loss", constraint_loss)
+        self.log("VAL_constraint_loss", constraint_loss * self.hparams.constraint_loss_weight)
         self.log("VAL_" + str(self.hparams.loss_function) + "_loss", loss)
-        self.log("VAL_sum_loss", loss + constraint_loss)
-        return loss + constraint_loss
+        self.log("VAL_sum_loss", loss + constraint_loss * self.hparams.constraint_loss_weight)
+        return loss + constraint_loss * self.hparams.constraint_loss_weight
     
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         x, neuron_ids, cell_type_ids = batch         # x is entire window
@@ -855,6 +851,7 @@ class Attention_With_Constraint(Base_2):
         predict_window_size = 1,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
+        constraint_loss_weight = 1,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -863,6 +860,7 @@ class Attention_With_Constraint(Base_2):
 
         # k * k matrix constraint
         self.cell_type_level_constraint = nn.Parameter(torch.rand(num_cell_types, num_cell_types), requires_grad=True)
+        # self.cell_type_level_constraint = nn.Parameter(nn.init.uniform_(torch.empty(num_cell_types,num_cell_types), a=-1, b=1.0), requires_grad=True)
 
         # MLP_1
 

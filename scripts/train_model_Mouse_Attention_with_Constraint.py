@@ -177,7 +177,7 @@ if __name__ == "__main__":
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")
     trainer = pl.Trainer(
-        devices=[1],
+        devices=[0],
         accelerator="gpu",
         callbacks=[es, checkpoint_callback, lr_monitor],
         benchmark=False,
@@ -193,8 +193,8 @@ if __name__ == "__main__":
     # plot
     plt.imshow(cell_type_level_constraint, interpolation="nearest")
     plt.colorbar()
-    plt.xlabel("Presynaptic cell type")
-    plt.ylabel("Postsynaptic cell type: " + str(cell_type2id))
+    plt.xlabel("Pre" + str(cell_type2id))
+    plt.ylabel("Post")
     plt.title("Cell type level constraint")
     # plt.xticks(np.arange(len(cell_type2id)), cell_type2id.keys(), rotation=45)
     # plt.yticks(np.arange(len(cell_type2id)), cell_type2id.keys())

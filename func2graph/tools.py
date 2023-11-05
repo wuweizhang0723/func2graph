@@ -224,6 +224,7 @@ def assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per
     unique_cell_types = list(set(all_sessions_original_cell_type))
     # Assign IDs to cell types
     cell_type2id = {unique_cell_types[i]: i for i in range(len(unique_cell_types))}
+    print('cell_type2id:', cell_type2id)
 
     # Get new cell type IDs
     all_sessions_new_cell_type_id = np.zeros(len(all_sessions_original_cell_type))

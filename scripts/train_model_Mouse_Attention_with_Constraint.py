@@ -106,6 +106,8 @@ if __name__ == "__main__":
         out_folder
         + model_type
         + "_"
+        + str(batch_size)
+        + "_"
         + str(window_size)
         + "_"
         + str(predict_window_size)
@@ -167,8 +169,6 @@ if __name__ == "__main__":
         constraint_loss_weight=constraint_loss_weight,
     )
 
-    print(single_model.cell_type_level_constraint.cpu().detach().numpy())
-
 
     es = EarlyStopping(monitor="VAL_sum_loss", patience=10)  ###########
     checkpoint_callback = ModelCheckpoint(
@@ -183,20 +183,119 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=400,
+        max_epochs=100,
+        gradient_clip_val=0.5,
     )
 
     trainer.fit(single_model, train_dataloader, val_dataloader)
 
-    cell_type_level_constraint = single_model.cell_type_level_constraint.cpu().detach().numpy()
+
+    # Evaluate the model
+    # model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
+
+    # train_results = trainer.predict(single_model, dataloaders=[train_dataloader], ckpt_path=model_checkpoint_path)
+
+    # predictions = []
+    # ground_truths = []
+    # attentions = []
+    # for i in range(len(train_results)):
+    #     x_hat = train_results[i][0]    # batch_size * (neuron_num*time)
+    #     x = train_results[i][1]
+    #     attention = train_results[i][2]
+
+    #     # Need to know the number of batches for each session
+    #     # Eache session has a avg attention
+    #     attention = attention.view(-1, neuron_num, neuron_num)
+
+    #     predictions.append(x_hat)
+    #     ground_truths.append(x)
+    #     attentions.append(attention)
+
+    model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
+    trained_model = single_model.load_from_checkpoint(model_checkpoint_path)
+    trained_model.eval()
+
+    cell_type_level_constraint = trained_model.cell_type_level_constraint.cpu().detach().numpy()
+
+    print(cell_type_level_constraint)
+
+    # fix the order of cell types
+    correct_cell_type2id = {'IN':0, 'Vip':1, 'Sncg':2, 'Sst':3, 'EC':4, 'Lamp5':5, 'Serpinf1':6, 'Pvalb':7}
+    correct_id2cell_type = {v: k for k, v in correct_cell_type2id.items()}
+    cell_type = [correct_id2cell_type.get(i) for i in range(len(cell_type2id))]
+
+    fixed_cell_type_level_constraint = np.zeros((8,8))
+    for i in range(8):
+        cell_name_i = correct_id2cell_type[i]
+        for j in range(8):
+            cell_name_j = correct_id2cell_type[j]
+            fixed_cell_type_level_constraint[i][j] = cell_type_level_constraint[cell_type2id[cell_name_i]][cell_type2id[cell_name_j]]
+            fixed_cell_type_level_constraint[j][i] = cell_type_level_constraint[cell_type2id[cell_name_j]][cell_type2id[cell_name_i]]
+
+
+    # save the cell type level constraint as npy
+    np.save(output_path + "/k_k.npy", fixed_cell_type_level_constraint)
+
+
+    # Make the ground truth connectivity matrix
+    ground_truth_connectivity = np.zeros((8, 8))
+    ground_truth_connectivity[:] = np.nan
+
+    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['EC']] = 13/229
+    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['EC']] = 22/53
+    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['EC']]= 20/67
+    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['EC']] = 11/68
+
+    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Pvalb']] = 18/52
+    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Pvalb']] = 45/114
+    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Pvalb']] = 8/88
+    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Pvalb']] = 0/54
+
+    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Sst']] = 13/56
+    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Sst']] = 15/84
+    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Sst']] = 8/154
+    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Sst']] = 25/84
+
+    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Vip']] = 3/62
+    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Vip']] = 1/54
+    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Vip']] = 12/87
+    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Vip']] = 2/209
+
+    # get correlation
+    fixed_cell_type_level_constraint_ = fixed_cell_type_level_constraint[~np.isnan(ground_truth_connectivity)]
+    ground_truth_connectivity_ = ground_truth_connectivity[~np.isnan(ground_truth_connectivity)]
+    corr = stats.pearsonr(fixed_cell_type_level_constraint_.flatten(), ground_truth_connectivity_.flatten())[0]
+    abs_corr = stats.pearsonr(np.abs(fixed_cell_type_level_constraint_.flatten()), np.abs(ground_truth_connectivity_.flatten()))[0]
 
     # plot
-    plt.imshow(cell_type_level_constraint, interpolation="nearest")
+    plt.imshow(fixed_cell_type_level_constraint, interpolation="nearest")
     plt.colorbar()
-    plt.xlabel("Pre" + str(cell_type2id))
+    plt.xlabel("Pre")
     plt.ylabel("Post")
-    plt.title("Cell type level constraint")
-    # plt.xticks(np.arange(len(cell_type2id)), cell_type2id.keys(), rotation=45)
-    # plt.yticks(np.arange(len(cell_type2id)), cell_type2id.keys())
+    plt.title("Cell type level constraint, corr = " + str(corr))
+    plt.xticks(np.arange(len(cell_type)), cell_type)
+    plt.yticks(np.arange(len(cell_type)), cell_type)
     plt.savefig(output_path + "/cell_type_level_constraint.png")
+    plt.close()
+
+    # plot abs
+    plt.imshow(np.abs(fixed_cell_type_level_constraint), interpolation="nearest")
+    plt.colorbar()
+    plt.xlabel("Pre")
+    plt.ylabel("Post")
+    plt.title("Cell type level constraint (abs), corr = " + str(abs_corr))
+    plt.xticks(np.arange(len(cell_type)), cell_type)
+    plt.yticks(np.arange(len(cell_type)), cell_type)
+    plt.savefig(output_path + "/cell_type_level_constraint_abs.png")
+    plt.close()
+
+    # plot ground truth
+    plt.imshow(ground_truth_connectivity, interpolation="nearest")
+    plt.colorbar()
+    plt.xlabel("Pre")
+    plt.ylabel("Post")
+    plt.title("Ground truth connectivity")
+    plt.xticks(np.arange(len(cell_type)), cell_type)
+    plt.yticks(np.arange(len(cell_type)), cell_type)
+    plt.savefig(output_path + "/ground_truth_connectivity.png")
     plt.close()

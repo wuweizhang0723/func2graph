@@ -76,6 +76,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--attention_type", default="spatial_temporal_1")  # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal_3" or "spatial"
 
+    parser.add_argument("--loss_function", default="mse") 
+
     # Baseline_2
 
 
@@ -133,6 +135,8 @@ if __name__ == "__main__":
     pos_enc_type = args.pos_enc_type
 
     attention_type = args.attention_type
+
+    loss_function = args.loss_function
 
 
 
@@ -239,6 +243,7 @@ if __name__ == "__main__":
             pos_enc_type=pos_enc_type,
             task_type=task_type,
             predict_window_size=predict_window_size,
+            loss_function=loss_function,
         )
     elif model_type == "Baseline_2":
         single_model = baselines.Baseline_2(
@@ -267,9 +272,9 @@ if __name__ == "__main__":
         )
 
 
-    es = EarlyStopping(monitor="val_loss", patience=12)  ###########
+    es = EarlyStopping(monitor=loss_function + " val_loss", patience=12)  ###########
     checkpoint_callback = ModelCheckpoint(
-        checkpoint_path, monitor="val_loss", mode="min", save_top_k=1
+        checkpoint_path, monitor=loss_function + " val_loss", mode="min", save_top_k=1
     )
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")

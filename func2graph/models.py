@@ -26,7 +26,7 @@ class Base(pl.LightningModule):
         return NotImplementedError
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=1e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=0)
 
         if self.hparams.scheduler == "plateau":
             lr_scheduler = {
@@ -211,7 +211,7 @@ class Base(pl.LightningModule):
             var = torch.ones(pred.shape, requires_grad=True).to(pred.device)  ##############################
             loss = F.gaussian_nll_loss(pred, target, reduction="mean", var=var)
         
-        self.log(str(self.hparams.loss_function) + "test_loss", loss)
+        self.log(str(self.hparams.loss_function) + " test_loss", loss)
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         if self.hparams.task_type == "reconstruction":
@@ -347,7 +347,6 @@ class Attention_Autoencoder(Base):
             self.attentionlayers.append(
                 nn.Sequential(
                     Attention(
-                        neuron_num=neuron_num,
                         dim=dim_in,  # the last dimension of input
                         heads=heads,
                         dim_key=dim_key,
@@ -693,7 +692,7 @@ class Base_2(pl.LightningModule):
         return NotImplementedError
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=1e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=0)
 
         if self.hparams.scheduler == "plateau":
             lr_scheduler = {
@@ -720,7 +719,8 @@ class Base_2(pl.LightningModule):
         return [optimizer], [lr_scheduler]
     
     def training_step(self, batch, batch_idx):
-        # print("self.cell_type_level_constraint gradient: ", self.cell_type_level_constraint.grad)
+        print("self.cell_type_level_constraint gradient: ", self.cell_type_level_constraint.grad)
+        print("self.cell_type_level_constraint: ", self.cell_type_level_constraint)
 
         x, neuron_ids, cell_type_ids = batch         # x is entire window
         print("unique num cell types: ", np.unique(cell_type_ids[0].clone().detach().cpu().numpy()))
@@ -748,18 +748,21 @@ class Base_2(pl.LightningModule):
                 expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_j, neuron_ids_with_same_cell_type_i.reshape(-1,1)] = cell_type_level_constraint[j, i]
 
     
-        print('num zeros in expanded_cell_type_level_constraint: ', torch.sum(expanded_cell_type_level_constraint == 0))
+        # print('num zeros in expanded_cell_type_level_constraint: ', torch.sum(expanded_cell_type_level_constraint == 0))
     
         # Expand the first dimension of expanded_cell_type_level_constraint to batch_size
         expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
-        print('eeeee', expanded_cell_type_level_constraint.requires_grad)
-        print('kkkkkk', cell_type_level_constraint.requires_grad)
-        print('aaaaaaa', neuron_level_attention.requires_grad)
+        # print('eeeee', expanded_cell_type_level_constraint.requires_grad)
+        # print('kkkkkk', cell_type_level_constraint.requires_grad)
+        # print('aaaaaaa', neuron_level_attention.requires_grad)
 
         # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
         var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device)
         constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
         
+        # make pred and target have the same shape
+        target = target.reshape(pred.shape)
+
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "poisson":
@@ -774,6 +777,7 @@ class Base_2(pl.LightningModule):
         return loss + constraint_loss * self.hparams.constraint_loss_weight
     
     def validation_step(self, batch, batch_idx):
+
         x, neuron_ids, cell_type_ids = batch         # x is entire window
         x = x.squeeze(0)                 # remove the fake batch_size
         neuron_ids = neuron_ids.squeeze(0)
@@ -827,7 +831,7 @@ class Base_2(pl.LightningModule):
         target = x[:, :, -1*self.hparams.predict_window_size:].clone()
         pred, neuron_level_attention, cell_type_level_constraint = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
 
-        return pred, target, cell_type_level_constraint
+        return pred, target, neuron_level_attention, cell_type_level_constraint
     
 
 
@@ -859,8 +863,9 @@ class Attention_With_Constraint(Base_2):
         torch.manual_seed(model_random_seed)
 
         # k * k matrix constraint
-        self.cell_type_level_constraint = nn.Parameter(torch.rand(num_cell_types, num_cell_types), requires_grad=True)
-        # self.cell_type_level_constraint = nn.Parameter(nn.init.uniform_(torch.empty(num_cell_types,num_cell_types), a=-1, b=1.0), requires_grad=True)
+        # self.cell_type_level_constraint = nn.Parameter(torch.zeros((num_cell_types, num_cell_types)), requires_grad=True)
+        # self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
+        self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(0, 1))
 
         # MLP_1
 

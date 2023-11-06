@@ -183,7 +183,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=100,
+        max_epochs=200,
         gradient_clip_val=0.5,
     )
 
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     # fix the order of cell types
     correct_cell_type2id = {'IN':0, 'Vip':1, 'Sncg':2, 'Sst':3, 'EC':4, 'Lamp5':5, 'Serpinf1':6, 'Pvalb':7}
     correct_id2cell_type = {v: k for k, v in correct_cell_type2id.items()}
-    cell_type = [correct_id2cell_type.get(i) for i in range(len(cell_type2id))]
+    cell_type = [correct_id2cell_type.get(i) for i in range(len(correct_cell_type2id))]
 
     fixed_cell_type_level_constraint = np.zeros((8,8))
     for i in range(8):
@@ -273,7 +273,7 @@ if __name__ == "__main__":
     plt.xlabel("Pre")
     plt.ylabel("Post")
     plt.title("Cell type level constraint, corr = " + str(corr))
-    plt.xticks(np.arange(len(cell_type)), cell_type)
+    plt.xticks(np.arange(len(cell_type)), cell_type, rotation=45)
     plt.yticks(np.arange(len(cell_type)), cell_type)
     plt.savefig(output_path + "/cell_type_level_constraint.png")
     plt.close()
@@ -284,7 +284,7 @@ if __name__ == "__main__":
     plt.xlabel("Pre")
     plt.ylabel("Post")
     plt.title("Cell type level constraint (abs), corr = " + str(abs_corr))
-    plt.xticks(np.arange(len(cell_type)), cell_type)
+    plt.xticks(np.arange(len(cell_type)), cell_type, rotation=45)
     plt.yticks(np.arange(len(cell_type)), cell_type)
     plt.savefig(output_path + "/cell_type_level_constraint_abs.png")
     plt.close()
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     plt.xlabel("Pre")
     plt.ylabel("Post")
     plt.title("Ground truth connectivity")
-    plt.xticks(np.arange(len(cell_type)), cell_type)
+    plt.xticks(np.arange(len(cell_type)), cell_type, rotation=45)
     plt.yticks(np.arange(len(cell_type)), cell_type)
     plt.savefig(output_path + "/ground_truth_connectivity.png")
     plt.close()

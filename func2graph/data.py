@@ -32,7 +32,7 @@ class data_simulator(Module):
         init_scale = 1,
         total_time=30000,
         data_random_seed=42,
-        weight_type="random",    # "random" or "simple"
+        weight_type="cell_type",    # "random" or "simple" or "cell_type"
     ):
         super().__init__()
         self.neuron_num = neuron_num
@@ -43,6 +43,7 @@ class data_simulator(Module):
         self.spike_input = spike_input
 
         torch.manual_seed(data_random_seed)
+        np.random.seed(data_random_seed)
 
         self.b = torch.randn(neuron_num)    # constant input for each neuron
 
@@ -74,8 +75,8 @@ class data_simulator(Module):
             self.W_ij = torch.zeros((neuron_num, neuron_num))
             for i in range(rank):
                 self.W_ij += eigenvalues[i] * (eigenvectors_1[i].view(neuron_num,1)@eigenvectors_2[i].view(1,neuron_num))
-        # else:
-        #     self.W_ij = tools.construct_weight_matrix(neuron_num, type=weight_type)
+        elif weight_type == "cell_type":
+            self.W_ij, cell_type2id, cell_type_ids = tools.construct_weight_matrix_cell_type(neuron_num)
 
         self.x_t = init_scale * torch.randn(neuron_num)    # x_(t=0) initialization
 
@@ -90,7 +91,7 @@ class data_simulator(Module):
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
         # x_t_1 = self.W_ij @ F.tanh(self.x_t)
-        x_t_1 = F.tanh((self.W_ij @ self.x_t) + self.b)
+        x_t_1 = F.tanh((self.W_ij @ self.x_t) + self.b) + torch.normal(0,1,size=(self.neuron_num,))
         self.x_t = x_t_1
         return x_t_1   # this is a vector of size neuron_num
     

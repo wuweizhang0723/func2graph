@@ -91,8 +91,10 @@ class Attention(nn.Module):
         dropout=0.0,
         pos_dropout=0.0,
         prediction_mode=False,
+        activation = 'tanh' # 'sigmoid' or 'tanh' or 'softmax'
     ):
         super().__init__()
+        self.activation = activation
         self.scale = dim_key ** -0.5
         self.heads = heads
 
@@ -136,9 +138,12 @@ class Attention(nn.Module):
         logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
         # logits_sign = torch.sign(logits)
         # logits = torch.abs(logits)
-        # attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
-        # attn0 = F.tanh(logits)
-        attn0 = F.sigmoid(logits)
+        if self.activation == 'softmax':
+            attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
+        elif self.activation == 'sigmoid':
+            attn0 = F.sigmoid(logits)
+        elif self.activation == 'tanh':
+            attn0 = F.tanh(logits)
         # multiply attention with sign matrix
         attn = self.attn_dropout(attn0)
 

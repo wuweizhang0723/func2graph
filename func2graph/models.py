@@ -33,7 +33,7 @@ class Base(pl.LightningModule):
                 "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
                     # TODO: add an argument to control the patience
                     optimizer,
-                    patience=3,
+                    patience=6,
                 ),
                 "monitor": str(self.hparams.loss_function) + " val_loss",
             }
@@ -276,6 +276,7 @@ class Attention_Autoencoder(Base):
         predict_window_size = 100,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
+        attention_activation = "softmax", # "softmax" or "sigmoid" or "tanh"
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -351,6 +352,7 @@ class Attention_Autoencoder(Base):
                         heads=heads,
                         dim_key=dim_key,
                         prediction_mode=self.prediction_mode,
+                        activation = attention_activation,
                     ),
                 )
             )

@@ -17,5 +17,5 @@ python train_model_Mouse.py --out_folder='../output/10_22_Attention_Mouse_mask_e
 python train_model_Mouse.py --out_folder='../output/10_29_Attention_Mouse_predict_log_poisson_sigmoid/' --model_type=Attention_Autoencoder --data_type=mouse --normalization=log --task_type=prediction --window_size=20 --predict_window_size=1 --heads=1 --attention_layers=1 --hidden_size_2=64 --h_layers_2=0 --learning_rate=1e-3 --pos_enc_type=lookup_table --model_random_seed=22 --dim_key=20 --loss_function=poisson > out.out
 
 
-python train_model_Mouse.py --out_folder='../output/10_29_Attention_Mouse_predict_log_poisson_sigmoid/' --model_type=Attention_Autoencoder --data_type=mouse --normalization=log --task_type=mask --window_size=20 --mask_size=100 --heads=1 --attention_layers=1 --hidden_size_2=64 --h_layers_2=0 --learning_rate=1e-3 --pos_enc_type=lookup_table --model_random_seed=42 --dim_key=20 --loss_function=poisson > out.out
+python train_model_Mouse.py --out_folder='../output/10_29_Attention_Mouse_predict_log_poisson_sigmoid/' --model_type=Attention_Autoencoder --data_type=mouse --normalization=log --task_type=mask --window_size=20 --mask_size=100 --heads=1 --attention_layers=1 --hidden_size_2=64 --h_layers_2=0 --learning_rate=1e-3 --pos_enc_type=lookup_table --model_random_seed=42 --dim_key=20 --loss_function=poisson --attention_activation=tanh > out.out
 

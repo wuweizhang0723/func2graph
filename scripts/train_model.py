@@ -76,7 +76,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--attention_type", default="spatial_temporal_1")  # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal_3" or "spatial"
 
-    parser.add_argument("--loss_function", default="mse") 
+    parser.add_argument("--loss_function", default="mse")
+
+    parser.add_argument("--attention_activation", default="softmax")    # "softmax" or "sigmoid" or "tanh"
 
     # Baseline_2
 
@@ -138,6 +140,8 @@ if __name__ == "__main__":
 
     loss_function = args.loss_function
 
+    attention_activation = args.attention_activation
+
 
 
     output_path = (
@@ -197,6 +201,8 @@ if __name__ == "__main__":
         + pos_enc_type
         + "_"
         + attention_type
+        + "_"
+        + attention_activation
     )
 
     checkpoint_path = output_path
@@ -244,6 +250,7 @@ if __name__ == "__main__":
             task_type=task_type,
             predict_window_size=predict_window_size,
             loss_function=loss_function,
+            attention_activation=attention_activation,
         )
     elif model_type == "Baseline_2":
         single_model = baselines.Baseline_2(
@@ -318,6 +325,8 @@ if __name__ == "__main__":
                 task_type=task_type,
                 predict_window_size=predict_window_size,
                 prediction_mode=True,
+                loss_function=loss_function,
+                attention_activation=attention_activation,
             )
         elif model_type == "Spatial_Temporal_Attention_Model":
             predict_mode_model = models.Spatial_Temporal_Attention_Model(

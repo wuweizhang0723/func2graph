@@ -49,34 +49,68 @@ def get_avg_attention(dataloader, predict_mode_model, checkpoint_path, neuron_nu
 
 
 # Construct weight matrix -------------------------------
-# This is used in data generation procedure to decide what type of weight matrix to use
+# This is used in data generation procedure to construct weight matrix that mimics the real mouse data with cell type information
 #
-# def construct_weight_matrix(neuron_num, type='nearest_neighbor'):
-#     if type=='nearest_neighbor':
-#         # random sample neuron_num points on 1-D line
-#         # then construct weight matrix based on the distance between each pair of points
-#         positions = torch.rand(neuron_num)
-#         distances = torch.zeros(neuron_num, neuron_num)
-#         weight_matrix = torch.zeros(neuron_num, neuron_num)
-#         for i in range(neuron_num):
-#             for j in range(i+1, neuron_num):
-#                 distances[i, j] = torch.abs(positions[i] - positions[j])
-#                 distances[j, i] = distances[i, j]
-#                 weight_matrix[i, j] = 1 / distances[i, j]
-#                 weight_matrix[j, i] = weight_matrix[i, j]
-        
-#         # normalize weight matrix
-#         mean = torch.mean(weight_matrix)
-#         std = torch.std(weight_matrix)
-#         weight_matrix = (weight_matrix - mean) / std
+def construct_weight_matrix_cell_type(neuron_num):
+    cell_type2id = {'EC':0, 'Pv':1, 'Sst':2, 'Vip':3}
+    # Let the first 76% neurons be EC, 8% neurons be Pv, 8% neurons be Sst, 8% neurons be Vip
+    cell_type_ids = np.random.choice([0, 1, 2, 3], size=neuron_num, p=[0.76, 0.08, 0.08, 0.08])
+    
+    # construct cutoff matrix from science paper
+    cutoff_matrix = np.zeros((4, 4))
+    cutoff_matrix[0, 0] = 13/229
+    cutoff_matrix[1, 0] = 22/53
+    cutoff_matrix[2, 0] = 20/67
+    cutoff_matrix[3, 0] = 11/68
 
-#         # Contol sparsity
-#         # weight_matrix[weight_matrix < 0.1] = 0
-#     return weight_matrix
+    cutoff_matrix[0, 1] = 18/52
+    cutoff_matrix[1, 1] = 45/114
+    cutoff_matrix[2, 1] = 8/88
+    cutoff_matrix[3, 1] = 0/54
+
+    cutoff_matrix[0, 2] = 13/56
+    cutoff_matrix[1, 2] = 15/84
+    cutoff_matrix[2, 2] = 8/154
+    cutoff_matrix[3, 2] = 25/84
+
+    cutoff_matrix[0, 3] = 3/62
+    cutoff_matrix[1, 3] = 1/54
+    cutoff_matrix[2, 3] = 12/87
+    cutoff_matrix[3, 3] = 2/209
+
+    # uniformly initialize weight matrix with uniform distribution from 0 to 1
+    weight_matrix = torch.rand(neuron_num, neuron_num)
+    # Set elements below cutoff to 0
+    for i in range(neuron_num):
+        for j in range(neuron_num):
+            cell_type_i = cell_type_ids[i]
+            cell_type_j = cell_type_ids[j]
+            if weight_matrix[i, j] < cutoff_matrix[cell_type_i, cell_type_j]:
+                weight_matrix[i, j] = 0
+            else:
+                if cell_type_j == 0:
+                    weight_matrix[i, j] = torch.abs(torch.normal(0, 1, size=(1,)))
+                else:
+                    weight_matrix[i, j] = -torch.abs(torch.normal(0, 2, size=(1,)))
+
+    # weight_matrix_strength = torch.normal(0, 1, size=(neuron_num, neuron_num))
+    # weight_matrix = weight_matrix * weight_matrix_strength
+
+    # for j in range(neuron_num):
+    #     cell_type_j = cell_type_ids[j]
+    #     if cell_type_j == 0:
+    #         weight_matrix[:, j] = torch.abs(weight_matrix[:, j])
+    #     else:
+    #         weight_matrix[:, j] = -torch.abs(weight_matrix[:, j])
+
+    return weight_matrix, cell_type2id, cell_type_ids
 
 
 
 
+# This function is used to get k*k attention matrix from a N*N attention matrix
+# It is for the first Attention model, which doesn't have k*k prior constraint.
+#
 def group_connectivity_matrix_by_cell_type(estimated_connectivity_matrix, neuron_types):
 
     # Create an index of for each cell type, and also the list of cells (their original indices) in each cell type ###############

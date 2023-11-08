@@ -54,7 +54,12 @@ def get_avg_attention(dataloader, predict_mode_model, checkpoint_path, neuron_nu
 def construct_weight_matrix_cell_type(neuron_num):
     cell_type2id = {'EC':0, 'Pv':1, 'Sst':2, 'Vip':3}
     # Let the first 76% neurons be EC, 8% neurons be Pv, 8% neurons be Sst, 8% neurons be Vip
-    cell_type_ids = np.random.choice([0, 1, 2, 3], size=neuron_num, p=[0.76, 0.08, 0.08, 0.08])
+    cell_type_ids = np.zeros(neuron_num, dtype=int)
+    cell_type_ids[:int(neuron_num*0.76)] = 0
+    cell_type_ids[int(neuron_num*0.76):int(neuron_num*0.84)] = 1
+    cell_type_ids[int(neuron_num*0.84):int(neuron_num*0.92)] = 2
+    cell_type_ids[int(neuron_num*0.92):] = 3
+    # cell_type_ids = np.random.choice([0, 1, 2, 3], size=neuron_num, p=[0.76, 0.08, 0.08, 0.08])
     
     # construct cutoff matrix from science paper
     cutoff_matrix = np.zeros((4, 4))
@@ -78,20 +83,44 @@ def construct_weight_matrix_cell_type(neuron_num):
     cutoff_matrix[2, 3] = 12/87
     cutoff_matrix[3, 3] = 2/209
 
+    strength_matrix = np.zeros((4, 4))
+    strength_matrix[0, 0] = 0.3
+    strength_matrix[1, 0] = 0.59
+    strength_matrix[2, 0] = 0.88
+    strength_matrix[3, 0] = 1.89
+
+    strength_matrix[0, 1] = -0.43
+    strength_matrix[1, 1] = -0.53
+    strength_matrix[2, 1] = -0.60
+    strength_matrix[3, 1] = -0.44
+
+    strength_matrix[0, 2] = -0.31
+    strength_matrix[1, 2] = -0.43
+    strength_matrix[2, 2] = -0.43
+    strength_matrix[3, 2] = -0.79
+
+    strength_matrix[0, 3] = -0.25
+    strength_matrix[1, 3] = -0.30
+    strength_matrix[2, 3] = -0.42
+    strength_matrix[3, 3] = -0.33
+
     # uniformly initialize weight matrix with uniform distribution from 0 to 1
     weight_matrix = torch.rand(neuron_num, neuron_num)
+
     # Set elements below cutoff to 0
     for i in range(neuron_num):
         for j in range(neuron_num):
             cell_type_i = cell_type_ids[i]
             cell_type_j = cell_type_ids[j]
-            if weight_matrix[i, j] < cutoff_matrix[cell_type_i, cell_type_j]:
+            if weight_matrix[i, j] > cutoff_matrix[cell_type_i, cell_type_j]:
                 weight_matrix[i, j] = 0
             else:
+                mean = strength_matrix[cell_type_i, cell_type_j]
                 if cell_type_j == 0:
-                    weight_matrix[i, j] = torch.abs(torch.normal(0, 1, size=(1,)))
+                    std = 0.1
                 else:
-                    weight_matrix[i, j] = -torch.abs(torch.normal(0, 2, size=(1,)))
+                    std = 0.1
+                weight_matrix[i, j] = torch.normal(mean, std, size=(1,))
 
     # weight_matrix_strength = torch.normal(0, 1, size=(neuron_num, neuron_num))
     # weight_matrix = weight_matrix * weight_matrix_strength
@@ -102,6 +131,19 @@ def construct_weight_matrix_cell_type(neuron_num):
     #         weight_matrix[:, j] = torch.abs(weight_matrix[:, j])
     #     else:
     #         weight_matrix[:, j] = -torch.abs(weight_matrix[:, j])
+
+    #############################
+    # Why not use science paper as the mean value of a distribution, and sample connection strength of each pair of neurons from that distribution?
+    # for i in range(neuron_num):
+    #     for j in range(neuron_num):
+    #         cell_type_i = cell_type_ids[i]
+    #         cell_type_j = cell_type_ids[j]
+    #         if cell_type_j == 0:
+    #             mean = cutoff_matrix[cell_type_i, cell_type_j]
+    #         else:
+    #             mean = -cutoff_matrix[cell_type_i, cell_type_j]
+    #         std = 1
+    #         weight_matrix[i, j] = torch.normal(mean, std, size=(1,))
 
     return weight_matrix, cell_type2id, cell_type_ids
 

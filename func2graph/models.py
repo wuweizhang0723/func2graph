@@ -26,7 +26,7 @@ class Base(pl.LightningModule):
         return NotImplementedError
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=0)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)
 
         if self.hparams.scheduler == "plateau":
             lr_scheduler = {
@@ -49,6 +49,7 @@ class Base(pl.LightningModule):
             }
         else:
             print("No scheduler is used")
+            return [optimizer]
 
         return [optimizer], [lr_scheduler]
     
@@ -277,6 +278,7 @@ class Attention_Autoencoder(Base):
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
         attention_activation = "softmax", # "softmax" or "sigmoid" or "tanh"
+        weight_decay = 0,
     ):
         super().__init__()
         self.save_hyperparameters()

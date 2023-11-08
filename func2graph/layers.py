@@ -5,8 +5,7 @@ from torch import Tensor
 from einops import rearrange
 from torch.nn import functional as F
 import numpy as np
-import math
-from typing import Union
+from torchmetrics.functional.pairwise import pairwise_cosine_similarity
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -135,15 +134,25 @@ class Attention(nn.Module):
 
         q = q * self.scale
 
-        logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
-        # logits_sign = torch.sign(logits)
-        # logits = torch.abs(logits)
         if self.activation == 'softmax':
+            logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
             attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
         elif self.activation == 'sigmoid':
+            logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
             attn0 = F.sigmoid(logits)
         elif self.activation == 'tanh':
+            logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
             attn0 = F.tanh(logits)
+        elif self.activation == 'none':
+            logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            attn0 = logits
+        elif self.activation == 'cosine_similarity':
+            q = q + self.rel_content_bias
+            logits = torch.zeros(q.shape[0], q.shape[1], q.shape[2], q.shape[2], requires_grad=True).to(device)
+            for i in range(q.shape[0]):
+                for j in range(q.shape[1]):
+                    logits[i][j] = pairwise_cosine_similarity(q[i][j], q[i][j])
+            attn0 = logits
         # multiply attention with sign matrix
         attn = self.attn_dropout(attn0)
 

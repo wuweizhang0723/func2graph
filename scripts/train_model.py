@@ -78,7 +78,11 @@ if __name__ == "__main__":
 
     parser.add_argument("--loss_function", default="mse")
 
-    parser.add_argument("--attention_activation", default="softmax")    # "softmax" or "sigmoid" or "tanh"
+    parser.add_argument("--attention_activation", default="softmax")    # "softmax" or "sigmoid" or "tanh" or "none"
+
+    parser.add_argument("--scheduler", default="plateau")    # "none" or "plateau"
+
+    parser.add_argument("--weight_decay", default=0)
 
     # Baseline_2
 
@@ -142,6 +146,10 @@ if __name__ == "__main__":
 
     attention_activation = args.attention_activation
 
+    scheduler = args.scheduler
+
+    weight_decay = float(args.weight_decay)
+
 
 
     output_path = (
@@ -203,6 +211,10 @@ if __name__ == "__main__":
         + attention_type
         + "_"
         + attention_activation
+        + "_"
+        + scheduler
+        + "_"
+        + str(weight_decay)
     )
 
     checkpoint_path = output_path
@@ -251,6 +263,8 @@ if __name__ == "__main__":
             predict_window_size=predict_window_size,
             loss_function=loss_function,
             attention_activation=attention_activation,
+            scheduler=scheduler,
+            weight_decay=weight_decay,
         )
     elif model_type == "Baseline_2":
         single_model = baselines.Baseline_2(
@@ -279,7 +293,7 @@ if __name__ == "__main__":
         )
 
 
-    es = EarlyStopping(monitor=loss_function + " val_loss", patience=12)  ###########
+    es = EarlyStopping(monitor=loss_function + " val_loss", patience=20)  ###########
     checkpoint_callback = ModelCheckpoint(
         checkpoint_path, monitor=loss_function + " val_loss", mode="min", save_top_k=1
     )
@@ -292,7 +306,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=500,
+        max_epochs=400,
     )
 
     trainer.fit(single_model, trainloader, validloader)
@@ -327,6 +341,8 @@ if __name__ == "__main__":
                 prediction_mode=True,
                 loss_function=loss_function,
                 attention_activation=attention_activation,
+                scheduler=scheduler,
+                weight_decay=weight_decay,
             )
         elif model_type == "Spatial_Temporal_Attention_Model":
             predict_mode_model = models.Spatial_Temporal_Attention_Model(

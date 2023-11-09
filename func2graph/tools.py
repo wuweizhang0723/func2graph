@@ -59,7 +59,8 @@ def construct_weight_matrix_cell_type(neuron_num):
     cell_type_ids[int(neuron_num*0.76):int(neuron_num*0.84)] = 1
     cell_type_ids[int(neuron_num*0.84):int(neuron_num*0.92)] = 2
     cell_type_ids[int(neuron_num*0.92):] = 3
-    # cell_type_ids = np.random.choice([0, 1, 2, 3], size=neuron_num, p=[0.76, 0.08, 0.08, 0.08])
+    
+    cell_type_count = {'EC':int(neuron_num*0.76), 'Pv':int(neuron_num*0.08), 'Sst':int(neuron_num*0.08), 'Vip':int(neuron_num*0.08)}
     
     # construct cutoff matrix from science paper
     cutoff_matrix = np.zeros((4, 4))
@@ -132,22 +133,13 @@ def construct_weight_matrix_cell_type(neuron_num):
     #     else:
     #         weight_matrix[:, j] = -torch.abs(weight_matrix[:, j])
 
-    #############################
-    # Why not use science paper as the mean value of a distribution, and sample connection strength of each pair of neurons from that distribution?
-    # for i in range(neuron_num):
-    #     for j in range(neuron_num):
-    #         cell_type_i = cell_type_ids[i]
-    #         cell_type_j = cell_type_ids[j]
-    #         if cell_type_j == 0:
-    #             mean = cutoff_matrix[cell_type_i, cell_type_j]
-    #         else:
-    #             mean = -cutoff_matrix[cell_type_i, cell_type_j]
-    #         std = 1
-    #         weight_matrix[i, j] = torch.normal(mean, std, size=(1,))
 
-    return weight_matrix, cell_type2id, cell_type_ids
+    return weight_matrix, cell_type2id, cell_type_ids, cell_type_count
 
 
+
+########################################################################################
+########################################################################################
 
 
 # This function is used to get k*k attention matrix from a N*N attention matrix
@@ -213,20 +205,26 @@ def group_connectivity_matrix_by_cell_type(estimated_connectivity_matrix, neuron
 
             connectivity_matrix_new[i, j] = estimated_connectivity_matrix[old_i, old_j]
 
+    return connectivity_matrix_new, cell_type_index2cell_type, cell_type2cell_type_index, cell_type_count
 
-        # Calculate the average correlation for each cell type ##################################################################
 
-    connectivity_matrix_cell_type_level = np.zeros((len(cell_type2cell_type_index), len(cell_type2cell_type_index)))
+# connectivity_matrix_new - grouped N*N connectivity matrix
+# cell_type_index2cell_type - dictionary of cell type index to cell type
+# cell_type_count - dictionary of cell type to number of cells in that cell type
+def calculate_cell_type_level_connectivity_matrix(connectivity_matrix_new, cell_type_id2cell_type, cell_type_count):
+    # Calculate the average correlation for each cell type ##################################################################
+
+    connectivity_matrix_cell_type_level = np.zeros((len(cell_type_id2cell_type), len(cell_type_id2cell_type)))
 
     accumulated_num_cells_i = 0
-    for i in range(len(cell_type2cell_type_index)):
+    for i in range(len(cell_type_id2cell_type)):
         old_i_start = accumulated_num_cells_i
-        accumulated_num_cells_i += cell_type_count[cell_type_index2cell_type[i]]
+        accumulated_num_cells_i += cell_type_count[cell_type_id2cell_type[i]]
 
         accumulated_num_cells_j = 0
-        for j in range(len(cell_type2cell_type_index)):
+        for j in range(len(cell_type_id2cell_type)):
             old_j_start = accumulated_num_cells_j
-            accumulated_num_cells_j += cell_type_count[cell_type_index2cell_type[j]]
+            accumulated_num_cells_j += cell_type_count[cell_type_id2cell_type[j]]
 
             # (Only for correlation) Remember to correct the denominator to be (total elements - # of cells in each cluster) when calculate for digonal elements
             num_elements_i = accumulated_num_cells_i - old_i_start
@@ -237,9 +235,34 @@ def group_connectivity_matrix_by_cell_type(estimated_connectivity_matrix, neuron
 
             connectivity_matrix_cell_type_level[i, j] = np.sum(connectivity_matrix_new[old_i_start : accumulated_num_cells_i, old_j_start : accumulated_num_cells_j]) / total_num_elements
 
-    return connectivity_matrix_new, connectivity_matrix_cell_type_level, cell_type2cell_type_index
+    return connectivity_matrix_cell_type_level
 
 
+def calculate_cell_type_level_connectivity_matrix_remove_no_connection(connectivity_matrix_new, connectivity_matrix_GT, cell_type_id2cell_type, cell_type_count):
+    connectivity_matrix_cell_type_level = np.zeros((len(cell_type_id2cell_type), len(cell_type_id2cell_type)))
+
+    accumulated_num_cells_i = 0
+    for i in range(len(cell_type_id2cell_type)):
+        old_i_start = accumulated_num_cells_i
+        accumulated_num_cells_i += cell_type_count[cell_type_id2cell_type[i]]
+
+        accumulated_num_cells_j = 0
+        for j in range(len(cell_type_id2cell_type)):
+            old_j_start = accumulated_num_cells_j
+            accumulated_num_cells_j += cell_type_count[cell_type_id2cell_type[j]]
+
+            # count the number of non-zeros in the ground truth matrix
+            mask_non_zeros = connectivity_matrix_GT[old_i_start : accumulated_num_cells_i, old_j_start : accumulated_num_cells_j] != 0
+            total_num_non_zeros_elements = np.sum(mask_non_zeros)
+
+            if total_num_non_zeros_elements == 0:
+                connectivity_matrix_cell_type_level[i, j] = 0
+            else:
+                connectivity_matrix_cell_type_level[i, j] = np.sum(connectivity_matrix_new[old_i_start : accumulated_num_cells_i, old_j_start : accumulated_num_cells_j][mask_non_zeros]) / total_num_non_zeros_elements
+
+    return connectivity_matrix_cell_type_level
+            
+            
 
 
 
@@ -358,3 +381,19 @@ def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessio
         all_sessions_new_cell_type_id_windows.append(cell_type_id_windows)
 
     return all_sessions_activity_windows, all_sessions_new_UniqueID_windows, all_sessions_new_cell_type_id_windows
+
+
+
+
+########################################################################################
+def get_corr_matrix(data, neuron_num=200):
+  matrix = np.zeros((neuron_num, neuron_num))
+  for i in range(neuron_num):
+    activity_i = data[i]
+    for j in range(i, neuron_num):
+      if i == j:
+        continue
+      activity_j = data[j]
+      corr = stats.pearsonr(activity_i, activity_j).statistic
+      matrix[i][j] = corr
+      matrix[j][i] = corr

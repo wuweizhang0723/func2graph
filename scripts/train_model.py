@@ -12,8 +12,9 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from os import listdir
+from torchmetrics import AUROC
 
-from func2graph import data, models, baselines
+from func2graph import data, models, baselines, tools
 
 
 
@@ -221,7 +222,7 @@ if __name__ == "__main__":
     log_path = out_folder + "/log"
 
     
-    trainloader, validloader, weight_matrix = data.generate_simulation_data(
+    data_result = data.generate_simulation_data(
         neuron_num=neuron_num,
         dt=dt,
         tau=tau,
@@ -239,8 +240,10 @@ if __name__ == "__main__":
         data_type=data_type,
     )
     if data_type == "wuwei" or data_type == "ziyu":
+        trainloader, validloader, weight_matrix, cell_type_ids, cell_type2id, cell_type_count = data_result
         weight_matrix = weight_matrix.detach().numpy()
     elif data_type == "c_elegans":
+        trainloader, validloader, weight_matrix = data_result
         weight_matrix_E = weight_matrix[0].detach().numpy()
         weight_matrix_Chem = weight_matrix[1].detach().numpy()
 
@@ -407,11 +410,64 @@ if __name__ == "__main__":
 
     if data_type == "wuwei" or data_type == "ziyu":
         estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
-        estimation_corr_abs = np.corrcoef(W.flatten(), np.abs(weight_matrix).flatten())[0, 1]
+        estimation_corr_abs = np.corrcoef(np.abs(W.flatten()), np.abs(weight_matrix).flatten())[0, 1]
+
+        strength_matrix = np.zeros((4, 4))
+        strength_matrix[0, 0] = 0.3
+        strength_matrix[1, 0] = 0.59
+        strength_matrix[2, 0] = 0.88
+        strength_matrix[3, 0] = 1.89
+
+        strength_matrix[0, 1] = -0.43
+        strength_matrix[1, 1] = -0.53
+        strength_matrix[2, 1] = -0.60
+        strength_matrix[3, 1] = -0.44
+
+        strength_matrix[0, 2] = -0.31
+        strength_matrix[1, 2] = -0.43
+        strength_matrix[2, 2] = -0.43
+        strength_matrix[3, 2] = -0.79
+
+        strength_matrix[0, 3] = -0.25
+        strength_matrix[1, 3] = -0.30
+        strength_matrix[2, 3] = -0.42
+        strength_matrix[3, 3] = -0.33
+
+        cell_type_id2cell_type = {0:'EC', 1:'Pv', 2:'Sst', 3:'Vip'}
+
+        cell_type_level_W = tools.calculate_cell_type_level_connectivity_matrix_remove_no_connection(
+            connectivity_matrix_new=W,
+            connectivity_matrix_GT=weight_matrix, 
+            cell_type_id2cell_type=cell_type_id2cell_type,
+            cell_type_count=cell_type_count
+        )
+
+        # make all nonzero elements in GT weight matrix to 1
+        binary_GT = np.zeros(weight_matrix.shape)
+        binary_GT[weight_matrix != 0] = 1
+
+        cross_entropy = F.binary_cross_entropy(F.sigmoid(torch.from_numpy(W).float()).view(-1), torch.from_numpy(binary_GT).float().view(-1))
+        auroc = AUROC(task="binary")
+        auroc_val = auroc(F.sigmoid(torch.from_numpy(W).float()).view(-1), torch.from_numpy(binary_GT).float().view(-1))
+        
+        cell_type_corr = np.corrcoef(cell_type_level_W.flatten(), strength_matrix.flatten())[0, 1]
+
+        plt.imshow(cell_type_level_W)
+        plt.colorbar()
+        plt.title("cell_type_level_W" + " (corr: " + str(cell_type_corr)[:6] + ")")
+        plt.savefig(output_path + "/cell_type_level_W.png")
+        plt.close()
+
+        plt.imshow(strength_matrix)
+        plt.colorbar()
+        plt.title("strength_matrix")
+        plt.savefig(output_path + "/strength_matrix.png")
+        plt.close()
 
         plt.imshow(W)
         plt.colorbar()
         plt.title("Estimated W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
+        plt.xlabel("BCE: " + str(cross_entropy) + " AUROC: " + str(auroc_val))
         plt.savefig(output_path + "/Estimated_W.png")
         plt.close()
 

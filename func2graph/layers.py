@@ -153,6 +153,7 @@ class Attention(nn.Module):
                 for j in range(q.shape[1]):
                     logits[i][j] = pairwise_cosine_similarity(q[i][j], q[i][j])
             attn0 = logits
+            
         # multiply attention with sign matrix
         attn = self.attn_dropout(attn0)
 

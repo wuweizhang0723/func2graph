@@ -26,7 +26,9 @@ from func2graph.layers import (
 
 def get_activity_correlation_matrix(activity, type="pearson"):
     if type == "pearson":
-        correlation_matrix = np.corrcoef(activity) 
+        correlation_matrix = np.corrcoef(activity)
+        # remove diagonal elements
+        correlation_matrix = correlation_matrix - np.diag(np.diag(correlation_matrix)) 
     return correlation_matrix
 
 

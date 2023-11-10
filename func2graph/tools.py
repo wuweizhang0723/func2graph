@@ -382,18 +382,3 @@ def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessio
 
     return all_sessions_activity_windows, all_sessions_new_UniqueID_windows, all_sessions_new_cell_type_id_windows
 
-
-
-
-########################################################################################
-def get_corr_matrix(data, neuron_num=200):
-  matrix = np.zeros((neuron_num, neuron_num))
-  for i in range(neuron_num):
-    activity_i = data[i]
-    for j in range(i, neuron_num):
-      if i == j:
-        continue
-      activity_j = data[j]
-      corr = stats.pearsonr(activity_i, activity_j).statistic
-      matrix[i][j] = corr
-      matrix[j][i] = corr

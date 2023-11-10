@@ -445,10 +445,13 @@ if __name__ == "__main__":
         # make all nonzero elements in GT weight matrix to 1
         binary_GT = np.zeros(weight_matrix.shape)
         binary_GT[weight_matrix != 0] = 1
+        # min max normalization
+        prob_W = np.abs(W)
+        prob_W = (prob_W - np.min(prob_W)) / (np.max(prob_W) - np.min(prob_W))
 
-        cross_entropy = F.binary_cross_entropy(F.sigmoid(torch.from_numpy(W).float()).view(-1), torch.from_numpy(binary_GT).float().view(-1))
+        cross_entropy = F.binary_cross_entropy(torch.from_numpy(prob_W).float().view(-1), torch.from_numpy(binary_GT).float().view(-1))
         auroc = AUROC(task="binary")
-        auroc_val = auroc(F.sigmoid(torch.from_numpy(W).float()).view(-1), torch.from_numpy(binary_GT).float().view(-1))
+        auroc_val = auroc(torch.from_numpy(prob_W).float().view(-1), torch.from_numpy(binary_GT).float().view(-1))
         
         cell_type_corr = np.corrcoef(cell_type_level_W.flatten(), strength_matrix.flatten())[0, 1]
 

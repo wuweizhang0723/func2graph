@@ -320,30 +320,51 @@ if __name__ == "__main__":
     ground_truth_connectivity = np.zeros((8, 8))
     ground_truth_connectivity[:] = np.nan
 
-    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['EC']] = 0.3
-    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['EC']] = 0.59
-    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['EC']]= 0.88
-    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['EC']] = 1.89
+    # ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['EC']] = 0.3
+    # ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['EC']] = 0.59
+    # ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['EC']]= 0.88
+    # ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['EC']] = 1.89
 
-    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Pvalb']] = -0.43
-    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Pvalb']] = -0.53
-    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Pvalb']] = -0.60
-    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Pvalb']] = -0.44
+    # ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Pvalb']] = -0.43
+    # ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Pvalb']] = -0.53
+    # ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Pvalb']] = -0.60
+    # ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Pvalb']] = -0.44
 
-    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Sst']] = -0.31
-    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Sst']] = -0.43
-    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Sst']] = -0.43
-    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Sst']] = -0.79
+    # ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Sst']] = -0.31
+    # ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Sst']] = -0.43
+    # ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Sst']] = -0.43
+    # ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Sst']] = -0.79
 
-    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Vip']] = -0.25
-    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Vip']] = -0.30
-    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Vip']] = -0.42
-    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Vip']] = -0.33
+    # ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Vip']] = -0.25
+    # ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Vip']] = -0.30
+    # ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Vip']] = -0.42
+    # ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Vip']] = -0.33
+
+    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['EC']] = 0.11
+    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['EC']] = 0.27
+    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['EC']]= 0.1
+    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['EC']] = 0.45
+
+    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Pvalb']] = -0.44
+    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Pvalb']] = -0.47
+    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Pvalb']] = -0.44
+    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Pvalb']] = -0.23
+
+    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Sst']] = -0.16
+    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Sst']] = -0.18
+    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Sst']] = -0.19
+    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Sst']] = -0.17
+
+    ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Vip']] = -0.06
+    ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Vip']] = -0.10
+    ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Vip']] = -0.17
+    ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Vip']] = -0.10
 
     # get correlation
     FINAL_k_k_avg_attention_ = FINAL_k_k_avg_attention[~np.isnan(ground_truth_connectivity)]
     ground_truth_connectivity_ = ground_truth_connectivity[~np.isnan(ground_truth_connectivity)]
     corr_avg_k_k = stats.pearsonr(FINAL_k_k_avg_attention_.flatten(), ground_truth_connectivity_.flatten())[0]
+    spearman_corr_avg_k_k = stats.spearmanr(FINAL_k_k_avg_attention_.flatten(), ground_truth_connectivity_.flatten())[0]
     abs_corr_avg_k_k = stats.pearsonr(np.abs(FINAL_k_k_avg_attention_.flatten()), np.abs(ground_truth_connectivity_.flatten()))[0]
 
     fixed_cell_type_level_constraint_ = cell_type_level_constraint[~np.isnan(ground_truth_connectivity)]
@@ -355,7 +376,7 @@ if __name__ == "__main__":
     plt.colorbar()
     plt.xlabel("Pre")
     plt.ylabel("Post")
-    plt.title("Avg k by k attention, corr = " + str(corr_avg_k_k))
+    plt.title("Avg k by k attention, corr = " + str(corr_avg_k_k)[:7] + ", spearman = " + str(spearman_corr_avg_k_k)[:7])
     plt.xticks(np.arange(len(cell_type)), cell_type, rotation=45)
     plt.yticks(np.arange(len(cell_type)), cell_type)
     plt.savefig(output_path + "/avg_k_k.png")

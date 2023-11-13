@@ -696,7 +696,7 @@ class Base_2(pl.LightningModule):
         return NotImplementedError
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=0)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)
 
         if self.hparams.scheduler == "plateau":
             lr_scheduler = {
@@ -835,7 +835,7 @@ class Base_2(pl.LightningModule):
         target = x[:, :, -1*self.hparams.predict_window_size:].clone()
         pred, neuron_level_attention, cell_type_level_constraint = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
 
-        return pred, target, neuron_level_attention, cell_type_level_constraint
+        return pred, target, neuron_level_attention
     
 
 
@@ -855,11 +855,13 @@ class Attention_With_Constraint(Base_2):
         h_layers_2=2,
         dropout=0.2,
         learning_rate=1e-4,
-        scheduler="plateau",
+        scheduler="cycle",
         predict_window_size = 1,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
         constraint_loss_weight = 1,
+        attention_activation = "none", # "softmax" or "sigmoid" or "tanh"
+        weight_decay = 0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -893,6 +895,7 @@ class Attention_With_Constraint(Base_2):
                         heads=heads,
                         dim_key=dim_key,
                         prediction_mode=True,  ##############################
+                        activation = attention_activation,
                     ),
                 )
             )

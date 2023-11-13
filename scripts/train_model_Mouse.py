@@ -71,6 +71,12 @@ if __name__ == "__main__":
 
     # parser.add_argument("--attention_type", default="spatial_temporal_1")  # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal_3" or "spatial"
 
+    parser.add_argument("--attention_activation", default="none")    # "softmax" or "sigmoid" or "tanh" or "none"
+
+    parser.add_argument("--scheduler", default="plateau")    # "none" or "plateau" or "cycle"
+
+    parser.add_argument("--weight_decay", default=0)
+
     # Baseline_2
 
 
@@ -127,6 +133,12 @@ if __name__ == "__main__":
 
     loss_function = args.loss_function
 
+    attention_activation = args.attention_activation
+
+    scheduler = args.scheduler
+
+    weight_decay = float(args.weight_decay)
+
 
 
     output_path = (
@@ -168,6 +180,12 @@ if __name__ == "__main__":
         + str(mask_size)
         + "_"
         + loss_function
+        + "_"
+        + attention_activation
+        + "_"
+        + scheduler
+        + "_"
+        + str(weight_decay)
     )
 
     checkpoint_path = output_path
@@ -208,6 +226,9 @@ if __name__ == "__main__":
             predict_window_size=predict_window_size,
             loss_function=loss_function,
             log_input=log_input,
+            attention_activation=attention_activation,
+            scheduler=scheduler,
+            weight_decay=weight_decay,
         )
     elif model_type == "Baseline_2":
         single_model = baselines.Baseline_2(
@@ -286,6 +307,9 @@ if __name__ == "__main__":
                 loss_function=loss_function,
                 log_input=log_input,
                 prediction_mode=True,
+                attention_activation=attention_activation,
+                scheduler=scheduler,
+                weight_decay=weight_decay,
             )
         elif model_type == "Spatial_Temporal_Attention_Model":
             predict_mode_model = models.Spatial_Temporal_Attention_Model(

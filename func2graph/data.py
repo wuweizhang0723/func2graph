@@ -647,13 +647,13 @@ class Mouse_All_Sessions_Dataset(TensorDataset):
         all_sessions_new_cell_type_id_windows, # list of 2d tensors, each tensor is a session (num_window x n)
         batch_size=3,                      # real batch size !!!!!!!!!!!!!!!!!
     ):
-        num_batch_per_session = [session.shape[0] // batch_size for session in all_sessions_activity_windows]
+        self.num_batch_per_session = [session.shape[0] // batch_size for session in all_sessions_activity_windows]
 
         self.all_batch = []
         self.all_batch_neuron_ids = []
         self.all_batch_cell_type_ids = []
-        for i in range(len(num_batch_per_session)):      # for each session
-            for j in range(num_batch_per_session[i]):      # for each batch
+        for i in range(len(self.num_batch_per_session)):      # for each session
+            for j in range(self.num_batch_per_session[i]):      # for each batch
                 self.all_batch.append(torch.Tensor(all_sessions_activity_windows[i][j*batch_size:(j+1)*batch_size]).float())
                 self.all_batch_neuron_ids.append(torch.Tensor(all_sessions_new_UniqueID_windows[i][j*batch_size:(j+1)*batch_size]).int())
                 self.all_batch_cell_type_ids.append(torch.Tensor(all_sessions_new_cell_type_id_windows[i][j*batch_size:(j+1)*batch_size]).int())
@@ -689,6 +689,8 @@ def generate_mouse_all_sessions_data(
     all_sessions_acitvity_VAL = []
     num_neurons_per_session = []
 
+    sessions_2_original_cell_type = []
+
     for i in range(len(input_sessions_file_path)):
         date_exp = input_sessions_file_path[i]['date_exp']
         input_setting = input_sessions_file_path[i]['input_setting']
@@ -698,10 +700,18 @@ def generate_mouse_all_sessions_data(
         )
 
         all_sessions_original_UniqueID.append(UniqueID)
-        all_sessions_original_cell_type.append(neuron_ttypes)
         all_sessions_acitvity_TRAIN.append(activity[:, :int(activity.shape[1]*split_ratio)])
         all_sessions_acitvity_VAL.append(activity[:, int(activity.shape[1]*split_ratio):])
         num_neurons_per_session.append(activity.shape[0])
+
+        # Get the first level of cell types
+        neuron_types_result = []
+        for j in range(len(neuron_ttypes)):
+            # split by "-"
+            neuron_types_result.append(neuron_ttypes[j].split("-")[0])
+
+        sessions_2_original_cell_type.append(neuron_types_result)
+        all_sessions_original_cell_type.append(neuron_types_result)
 
     all_sessions_original_UniqueID = np.concatenate(all_sessions_original_UniqueID)
     all_sessions_original_cell_type = np.concatenate(all_sessions_original_cell_type)
@@ -742,7 +752,11 @@ def generate_mouse_all_sessions_data(
         all_sessions_new_cell_type_id_window_VAL, 
         batch_size=batch_size,        ###### real batch_size!!!!!!!!!!!!!!!!!!!!
     )
+
+    num_batch_per_session_TRAIN = train_dataset.num_batch_per_session
+    num_batch_per_session_VAL = val_dataset.num_batch_per_session
+
     train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=shuffle, num_workers=num_workers)    # this is not real batch_size
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=shuffle, num_workers=num_workers)        # this is not real batch_size
 
-    return train_dataloader, val_dataloader, num_unqiue_neurons, cell_type2id
+    return train_dataloader, val_dataloader, num_unqiue_neurons, cell_type2id, num_batch_per_session_TRAIN, num_batch_per_session_VAL, sessions_2_original_cell_type

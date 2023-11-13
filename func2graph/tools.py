@@ -308,19 +308,15 @@ def assign_unique_neuron_ids(all_sessions_original_UniqueID, num_neurons_per_ses
 
 def assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per_session):
     """
-    all_sessions_original_cell_type: a concatenated list of the original cell types from all sessions (raw cell types)
+    all_sessions_original_cell_type: a concatenated list of the original cell types from all sessions)
 
     Return:
     all_sessions_new_cell_type: a list of sessions new cell type, each session is a 1D array of shape num_neurons
     """
-    # Get the first level of cell types
-    neuron_types_result = []
-    for i in range(len(all_sessions_original_cell_type)):
-        # split by "-"
-        neuron_types_result.append(all_sessions_original_cell_type[i].split("-")[0])
-    all_sessions_original_cell_type = neuron_types_result
 
     unique_cell_types = list(set(all_sessions_original_cell_type))
+    unique_cell_types.sort()
+    
     # Assign IDs to cell types
     cell_type2id = {unique_cell_types[i]: i for i in range(len(unique_cell_types))}
     print('cell_type2id:', cell_type2id)

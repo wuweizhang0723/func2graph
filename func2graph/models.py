@@ -761,7 +761,7 @@ class Base_2(pl.LightningModule):
         # print('aaaaaaa', neuron_level_attention.requires_grad)
 
         # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
-        var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device)
+        var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var
         constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
         
         # make pred and target have the same shape
@@ -809,7 +809,7 @@ class Base_2(pl.LightningModule):
             
         expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
 
-        var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device)
+        var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var
         constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
         
         if self.hparams.loss_function == "mse":
@@ -862,6 +862,7 @@ class Attention_With_Constraint(Base_2):
         constraint_loss_weight = 1,
         attention_activation = "none", # "softmax" or "sigmoid" or "tanh"
         weight_decay = 0,
+        constraint_var = 1,
     ):
         super().__init__()
         self.save_hyperparameters()

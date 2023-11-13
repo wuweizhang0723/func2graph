@@ -64,6 +64,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--weight_decay", default=0)
 
+    parser.add_argument("--constraint_var", default=0.04)
+
 
 
     args = parser.parse_args()
@@ -113,6 +115,8 @@ if __name__ == "__main__":
 
     weight_decay = float(args.weight_decay)
 
+    constraint_var = float(args.constraint_var)
+
 
     output_path = (
         out_folder
@@ -155,6 +159,8 @@ if __name__ == "__main__":
         + scheduler
         + "_"
         + str(weight_decay)
+        + "_"
+        + str(constraint_var)
     )
 
     checkpoint_path = output_path
@@ -188,6 +194,7 @@ if __name__ == "__main__":
         attention_activation=attention_activation,
         scheduler=scheduler,
         weight_decay=weight_decay,
+        constraint_var=constraint_var,
     )
 
 
@@ -204,7 +211,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=10,
+        max_epochs=100,
         gradient_clip_val=0.5,
     )
 

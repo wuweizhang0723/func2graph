@@ -955,3 +955,60 @@ class Attention_With_Constraint(Base_2):
 
         batch_neuron_num = attention_results[0].shape[-1]
         return x, attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+    
+
+
+
+##############################################################################################################
+##############################################################################################################
+## For Attention with Constraint Model (simulated data)
+##############################################################################################################
+##############################################################################################################
+
+class Base_3(pl.LightningModule):
+    def __init__(self,) -> None:
+        super().__init__()
+        self.save_hyperparameters()
+
+    def forward(self, x):
+        return NotImplementedError
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)
+
+        if self.hparams.scheduler == "plateau":
+            lr_scheduler = {
+                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    # TODO: add an argument to control the patience
+                    optimizer,
+                    patience=3,
+                ),
+                "monitor": "VAL_sum_loss",
+            }
+        elif self.hparams.scheduler == "cycle":
+            lr_scheduler = {
+                "scheduler": torch.optim.lr_scheduler.CyclicLR(
+                    optimizer,
+                    base_lr=self.hparams.learning_rate / 2,
+                    max_lr=self.hparams.learning_rate * 2,
+                    cycle_momentum=False,
+                ),
+                "interval": "step",
+            }
+        else:
+            print("No scheduler is used")
+
+        return [optimizer], [lr_scheduler]
+    
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat, neuron_level_attention, cell_type_level_constraint = self(x)
+
+        expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(y_hat.device)
+        cell_type_count = [self.neuron_num*0.76, self.neuron_num*0.08, self.neuron_num*0.08, self.neuron_num*0.08]
+        # loop over unique cell types
+        for i in range(cell_type_level_constraint.shape[0]):
+            start = int(sum(cell_type_count[:i]))
+            end = int(sum(cell_type_count[:i+1]))
+            for j in range(cell_type_level_constraint.shape[1]):
+                expanded_cell_type_level_constraint[i, j] = cell_type_level_constraint[i, j]

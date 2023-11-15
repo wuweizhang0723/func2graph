@@ -275,6 +275,7 @@ if __name__ == "__main__":
             learning_rate=learning_rate,
             simulated_network_type=2,
             model_random_seed=model_random_seed,
+            scheduler=scheduler,
         )
     elif model_type == "Spatial_Temporal_Attention_Model":
         single_model = models.Spatial_Temporal_Attention_Model(
@@ -399,6 +400,7 @@ if __name__ == "__main__":
             learning_rate=learning_rate,
             simulated_network_type=2,
             model_random_seed=model_random_seed,
+            scheduler=scheduler,
         )
         model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
 
@@ -409,6 +411,9 @@ if __name__ == "__main__":
 
 
     if data_type == "wuwei" or data_type == "ziyu":
+
+        ############################################################# Strength connection evaluation 
+
         estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
         estimation_corr_abs = np.corrcoef(np.abs(W.flatten()), np.abs(weight_matrix).flatten())[0, 1]
 
@@ -441,6 +446,30 @@ if __name__ == "__main__":
             cell_type_id2cell_type=cell_type_id2cell_type,
             cell_type_count=cell_type_count
         )
+        cell_type_corr = np.corrcoef(cell_type_level_W.flatten(), strength_matrix.flatten())[0, 1]
+
+        ############################################################# Binary connection evaluation
+
+        cutoff_matrix = np.zeros((4, 4))
+        cutoff_matrix[0, 0] = 13/229
+        cutoff_matrix[1, 0] = 22/53
+        cutoff_matrix[2, 0] = 20/67
+        cutoff_matrix[3, 0] = 11/68
+
+        cutoff_matrix[0, 1] = 18/52
+        cutoff_matrix[1, 1] = 45/114
+        cutoff_matrix[2, 1] = 8/88
+        cutoff_matrix[3, 1] = 0/54
+
+        cutoff_matrix[0, 2] = 13/56
+        cutoff_matrix[1, 2] = 15/84
+        cutoff_matrix[2, 2] = 8/154
+        cutoff_matrix[3, 2] = 25/84
+
+        cutoff_matrix[0, 3] = 3/62
+        cutoff_matrix[1, 3] = 1/54
+        cutoff_matrix[2, 3] = 12/87
+        cutoff_matrix[3, 3] = 2/209   
 
         # make all nonzero elements in GT weight matrix to 1
         binary_GT = np.zeros(weight_matrix.shape)
@@ -453,35 +482,74 @@ if __name__ == "__main__":
         auroc = AUROC(task="binary")
         auroc_val = auroc(torch.from_numpy(prob_W).float().view(-1), torch.from_numpy(binary_GT).float().view(-1))
         
-        cell_type_corr = np.corrcoef(cell_type_level_W.flatten(), strength_matrix.flatten())[0, 1]
+        # convert n*n prob_W to k*k prob_W
+        cell_type_level_prob_W = tools.calculate_cell_type_level_connectivity_matrix(
+            connectivity_matrix_new=prob_W,
+            cell_type_id2cell_type=cell_type_id2cell_type,
+            cell_type_count=cell_type_count
+        )
+
+        cell_type_level_prob_corr = np.corrcoef(cell_type_level_prob_W.flatten(), cutoff_matrix.flatten())[0, 1]
+
+
+        ############################################################# 
+        # connection prob
+
+        plt.imshow(cell_type_level_prob_W, cmap='bone')
+        plt.colorbar()
+        plt.title("prob_W_(cell_type_level)" + " (corr: " + str(cell_type_level_prob_corr)[:6] + ")")
+        plt.savefig(output_path + "/prob_W_(cell_type_level).png")
+        plt.close()
+
+        plt.imshow(cutoff_matrix, cmap='bone')
+        plt.colorbar()
+        plt.title("prob_GT_(cell_type_level)")
+        plt.savefig(output_path + "/prob_GT_(cell_type_level).png")
+        plt.close()
+
+        plt.imshow(prob_W, cmap='bone')
+        plt.colorbar()
+        plt.title("prob_W" + " (BCE: " + str(cross_entropy.numpy())[:6] + ") " + " (AUROC: " + str(auroc_val.numpy())[:6] + ")")
+        plt.savefig(output_path + "/prob_W.png")
+        plt.close()
+
+        plt.imshow(binary_GT, cmap='bone')
+        plt.colorbar()
+        plt.title("prob_GT")
+        plt.savefig(output_path + "/prob_GT.png")
+        plt.close()
+
+        ############################## 
+        # connection strength
 
         plt.imshow(cell_type_level_W)
         plt.colorbar()
-        plt.title("cell_type_level_W" + " (corr: " + str(cell_type_corr)[:6] + ")")
-        plt.savefig(output_path + "/cell_type_level_W.png")
+        plt.title("W_(cell_type_level)" + " (corr: " + str(cell_type_corr)[:6] + ")")
+        plt.savefig(output_path + "/W_(cell_type_level).png")
         plt.close()
 
         plt.imshow(strength_matrix)
         plt.colorbar()
-        plt.title("strength_matrix")
-        plt.savefig(output_path + "/strength_matrix.png")
+        plt.title("GT_(cell_type_level)")
+        plt.savefig(output_path + "/GT_(cell_type_level).png")
         plt.close()
 
         plt.imshow(W)
         plt.colorbar()
-        plt.title("Estimated W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
-        plt.xlabel("BCE: " + str(cross_entropy) + " AUROC: " + str(auroc_val))
-        plt.savefig(output_path + "/Estimated_W.png")
+        plt.title("W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
+        plt.savefig(output_path + "/W.png")
         plt.close()
 
-        plt.imshow(weight_matrix)
+        max_abs = np.max(np.abs(weight_matrix))
+        plt.imshow(weight_matrix, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
         plt.colorbar()
-        plt.title("Ground-truth W")
-        plt.savefig(output_path + "/Ground_truth_W.png")
+        plt.title("GT")
+        plt.savefig(output_path + "/GT.png")
         plt.close()
 
         # save estimated W to npy file
         np.save(output_path + "/" + "Estimated_W_" + str(model_random_seed) + ".npy", W)
+        np.save(output_path + "/" + "cell_type_level_W_" + str(model_random_seed) + ".npy", cell_type_level_W)
     
     elif data_type == "c_elegans":
         estimation_corr_E = np.corrcoef(W.flatten(), weight_matrix_E.flatten())[0, 1]

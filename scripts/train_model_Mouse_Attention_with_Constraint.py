@@ -211,7 +211,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=100,
+        max_epochs=200,
         gradient_clip_val=0.5,
     )
 
@@ -381,6 +381,8 @@ if __name__ == "__main__":
     plt.yticks(np.arange(len(cell_type)), cell_type)
     plt.savefig(output_path + "/avg_k_k.png")
     plt.close()
+
+    np.save(output_path + "/avg_k_k.npy", FINAL_k_k_avg_attention)
 
     # plot abs
     plt.imshow(np.abs(FINAL_k_k_avg_attention), interpolation="nearest")

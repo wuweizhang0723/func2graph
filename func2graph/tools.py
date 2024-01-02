@@ -232,6 +232,8 @@ def calculate_cell_type_level_connectivity_matrix(connectivity_matrix_new, cell_
             total_num_elements = num_elements_i * num_elements_j
             # if i == j:
             #     total_num_elements = total_num_elements - cell_type_count[cell_type_index2cell_type[i]]
+            if total_num_elements == 0:
+                connectivity_matrix_cell_type_level[i, j] = 0
 
             connectivity_matrix_cell_type_level[i, j] = np.sum(connectivity_matrix_new[old_i_start : accumulated_num_cells_i, old_j_start : accumulated_num_cells_j]) / total_num_elements
 
@@ -268,7 +270,7 @@ def calculate_cell_type_level_connectivity_matrix_remove_no_connection(connectiv
 
 ########################################################################################
 ########################################################################################
-## For mouse data with multiple sessions.
+## For processing mouse data with multiple sessions.
 ########################################################################################
 ########################################################################################
 
@@ -378,3 +380,16 @@ def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessio
 
     return all_sessions_activity_windows, all_sessions_new_UniqueID_windows, all_sessions_new_cell_type_id_windows
 
+
+
+
+########################################################################################
+########################################################################################
+## For Multi-session mouse data, after getting multi-session N*N connectivity matrices,
+## to evaluate result, we need to convert multiple N*N matrices into ONE K*K matrix.
+##
+## There are 2 ways to do this:
+## 1) From multi-session N*N matrices directly get one K*K matrix
+## 2) From multi-session N*N matrices get multi-session K*K matrices, then get one K*K matrix
+########################################################################################
+########################################################################################

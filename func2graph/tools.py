@@ -321,7 +321,7 @@ def assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per
     
     # Assign IDs to cell types
     cell_type2id = {unique_cell_types[i]: i for i in range(len(unique_cell_types))}
-    print('cell_type2id:', cell_type2id)
+    print('cell_type2id:', cell_type2id)   # TODO: change the type of cell_type2id to be a list
 
     # Get new cell type IDs
     all_sessions_new_cell_type_id = np.zeros(len(all_sessions_original_cell_type))
@@ -393,3 +393,119 @@ def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessio
 ## 2) From multi-session N*N matrices get multi-session K*K matrices, then get one K*K matrix
 ########################################################################################
 ########################################################################################
+
+def multisession_NN_to_KK_1(
+    multisession_NN_list: list,
+    multisession_binary_NN_list: list,
+    cell_type_order: list,
+    multisession_cell_type_id_list: list,
+):
+    """
+    This function can be used for mouse data to compute K*K connectivity strength or K*K connectivity probability
+    from multiple sessions N*N results.
+    It follows the 1) way to get one K*K matrix directly from multiple N*N matrices.
+
+    - multisession_NN_list: a list of N*N connectivity matrices from multiple sessions 
+    (N can be different in different sessions)
+    - multisession_binary_NN_list: a list of binary N*N connectivity matrices from multiple sessions
+    This is used to represent whether there is a connection or there is no connection.
+    If (multisession_binary_NN_list == none), then we won't use it in this function. For computing K*K connection strength,
+    it means that we don't first exclude positions where there is no connection. For computing K*K connection probability,
+    (multisession_binary_NN_list == none) should be used.
+    - cell_type_order: a list of cell type order
+    This should contain all cell types that are in the data. (a union of all cell types from all sessions)
+    The order should be decided when processing the data. E.g. ['EC', 'Pv', 'Sst', 'Vip']
+    - multisession_cell_type_id_list: a list of cell type ids from multiple sessions
+
+    Return:
+    KK: a K*K connectivity strength or probability matrix, with cell_type_order as the order of cell types
+    """
+
+    KK_result = np.zeros((len(cell_type_order), len(cell_type_order)))
+    # count the number of sessions that have non-zero connection between cell type i and cell type j
+    KK_count = np.zeros((len(cell_type_order), len(cell_type_order)))
+
+    for i in range(len(multisession_NN_list)):
+        current_session_NN = multisession_NN_list[i]
+        current_session_cell_type_id = multisession_cell_type_id_list[i]
+        if multisession_binary_NN_list is not None:
+            current_session_binary_NN = multisession_binary_NN_list[i]
+
+        for j in range(len(current_session_cell_type_id)):
+            for k in range(len(current_session_cell_type_id)):
+                if multisession_binary_NN_list is not None:
+                    if current_session_binary_NN[j, k] == 0:
+                        continue
+                cell_type_j = current_session_cell_type_id[j]
+                cell_type_k = current_session_cell_type_id[k]
+
+                KK_result[cell_type_j, cell_type_k] += current_session_NN[j, k]
+                KK_count[cell_type_j, cell_type_k] += 1
+
+    return KK_result / KK_count
+
+
+def multisession_NN_to_KK_2(
+    multisession_NN_list: list,
+    multisession_binary_NN_list: list,
+    cell_type_order: list,
+    multisession_cell_type_id_list: list,
+):
+    """
+    This function can be used for mouse data to compute K*K connectivity strength or K*K connectivity probability
+    from multiple sessions N*N results.
+    It follows the 2) way to first get multi-session K*K matrices, then get one K*K matrix.
+
+    - multisession_NN_list: a list of N*N connectivity matrices from multiple sessions 
+    (N can be different in different sessions)
+    - multisession_binary_NN_list: a list of binary N*N connectivity matrices from multiple sessions
+    This is used to represent whether there is a connection or there is no connection.
+    If (multisession_binary_NN_list == none), then we won't use it in this function. For computing K*K connection strength,
+    it means that we don't first exclude positions where there is no connection. For computing K*K connection probability,
+    (multisession_binary_NN_list == none) should be used.
+    - cell_type_order: a list of cell type order
+    This should contain all cell types that are in the data. (a union of all cell types from all sessions)
+    The order should be decided when processing the data. E.g. ['EC', 'Pv', 'Sst', 'Vip']
+    - multisession_cell_type_id_list: a list of cell type ids from multiple sessions
+
+    Return:
+    KK: a K*K connectivity strength or probability matrix, with cell_type_order as the order of cell types
+    """
+
+    # First get multi-session K*K matrices
+    multisession_KK_list = []
+    # This is used to represent whether cell type i and cell type j exist in each session
+    multisession_binary_KK_list = []
+
+    for i in range(len(multisession_NN_list)):
+        current_session_NN = multisession_NN_list[i]
+        current_session_cell_type_id = multisession_cell_type_id_list[i]
+        if multisession_binary_NN_list is not None:
+            current_session_binary_NN = multisession_binary_NN_list[i]
+
+        current_session_binary_KK = np.zeros((len(cell_type_order), len(cell_type_order)))
+
+        current_session_KK = np.zeros((len(cell_type_order), len(cell_type_order)))
+        current_session_KK_count = np.zeros((len(cell_type_order), len(cell_type_order)))
+        for j in range(len(current_session_cell_type_id)):
+            for k in range(len(current_session_cell_type_id)):
+
+                if multisession_binary_NN_list is not None:
+                    if current_session_binary_NN[j, k] == 0:
+                        continue
+                cell_type_j = current_session_cell_type_id[j]
+                cell_type_k = current_session_cell_type_id[k]
+
+                current_session_KK[cell_type_j, cell_type_k] += current_session_NN[j, k]
+                current_session_KK_count[cell_type_j, cell_type_k] += 1
+
+                if current_session_binary_KK[cell_type_j, cell_type_k] == 0:
+                    current_session_binary_KK[cell_type_j, cell_type_k] = 1
+
+        multisession_KK_list.append(current_session_KK / current_session_KK_count)
+        multisession_binary_KK_list.append(current_session_binary_KK)
+
+    KK_count = np.sum(multisession_binary_KK_list, axis=0)
+    KK_result = np.sum(multisession_KK_list, axis=0)
+
+    return KK_result / KK_count

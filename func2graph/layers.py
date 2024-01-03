@@ -86,23 +86,36 @@ class Attention(nn.Module):
         *,
         heads=8,
         dim_key=64,    ########### 16 for simulated data
+        to_q_layers=2,
+        to_k_layers=2,
         dim_value=16,
         dropout=0.0,
         pos_dropout=0.0,
         prediction_mode=False,
-        activation = 'tanh' # 'sigmoid' or 'tanh' or 'softmax'
+        activation = 'none' # 'sigmoid' or 'tanh' or 'softmax' or 'none' or 'cosine_similarity'
     ):
         super().__init__()
         self.activation = activation
         self.scale = dim_key ** -0.5
         self.heads = heads
 
-        # self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-
         # Q, K, V
 
         self.to_q = nn.Linear(dim, dim_key * heads, bias=False)
+        self.to_q_fc_layers = nn.ModuleList(
+            nn.Sequential(
+                nn.Linear(dim_key * heads, dim_key * heads), nn.ReLU(), nn.Dropout(dropout)
+            )
+            for layer in range(to_q_layers)
+        )
         self.to_k = nn.Linear(dim, dim_key * heads, bias=False)
+        self.to_k_fc_layers = nn.ModuleList(
+            nn.Sequential(
+                nn.Linear(dim_key * heads, dim_key * heads), nn.ReLU(), nn.Dropout(dropout)
+            )
+            for layer in range(to_k_layers)
+        )
+
         self.to_v = nn.Linear(dim, dim_value * heads, bias=False)
 
         self.to_out = nn.Linear(dim_value * heads, dim)
@@ -126,9 +139,6 @@ class Attention(nn.Module):
         k = self.to_k(x)
         # v = self.to_v(x)
         v = x.clone()            # identity mapping
-
-        # sign_matrix = self.to_sign_matrix(x)
-        # sign_matrix = rearrange(sign_matrix, "b n (h d) -> b h n d", h=h)
 
         q, k, v = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=h), (q, k, v))
 
@@ -154,7 +164,6 @@ class Attention(nn.Module):
                     logits[i][j] = pairwise_cosine_similarity(q[i][j], q[i][j])
             attn0 = logits
             
-        # multiply attention with sign matrix
         attn = self.attn_dropout(attn0)
 
         out = einsum("b h i j, b h j d -> b h i d", attn, v)   ######### ????？ F.relu(v)

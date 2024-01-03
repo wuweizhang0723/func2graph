@@ -320,18 +320,18 @@ def assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per
     unique_cell_types.sort()
     
     # Assign IDs to cell types
-    cell_type2id = {unique_cell_types[i]: i for i in range(len(unique_cell_types))}
-    print('cell_type2id:', cell_type2id)   # TODO: change the type of cell_type2id to be a list
+    cell_type_order = [unique_cell_types[i] for i in range(len(unique_cell_types))]
+    print('cell_type_order:', cell_type_order)
 
     # Get new cell type IDs
-    all_sessions_new_cell_type_id = np.zeros(len(all_sessions_original_cell_type))
+    all_sessions_new_cell_type_id = np.zeros(len(all_sessions_original_cell_type)).astype(int)
     for i in range(len(all_sessions_original_cell_type)):
-        all_sessions_new_cell_type_id[i] = cell_type2id[all_sessions_original_cell_type[i]]
+        all_sessions_new_cell_type_id[i] = cell_type_order.index(all_sessions_original_cell_type[i])
 
     # Segment all_sessions_new_cell_type_id into sessions
     all_sessions_new_cell_type_id = np.split(all_sessions_new_cell_type_id, np.cumsum(num_neurons_per_session)[:-1])
 
-    return all_sessions_new_cell_type_id, cell_type2id     # shape: num_sessions x num_neurons_per_session
+    return all_sessions_new_cell_type_id, cell_type_order     # shape: num_sessions x num_neurons_per_session
 
 
 
@@ -387,6 +387,7 @@ def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessio
 ########################################################################################
 ## For Multi-session mouse data, after getting multi-session N*N connectivity matrices,
 ## to evaluate result, we need to convert multiple N*N matrices into ONE K*K matrix.
+## Works for BOTH connectivity strength AND connectivity probability.
 ##
 ## There are 2 ways to do this:
 ## 1) From multi-session N*N matrices directly get one K*K matrix
@@ -442,6 +443,8 @@ def multisession_NN_to_KK_1(
                 KK_result[cell_type_j, cell_type_k] += current_session_NN[j, k]
                 KK_count[cell_type_j, cell_type_k] += 1
 
+    # Make all 0 entries in KK_count to be 1, so that we don't divide by 0
+    KK_count[KK_count == 0] = 1
     return KK_result / KK_count
 
 
@@ -502,6 +505,8 @@ def multisession_NN_to_KK_2(
                 if current_session_binary_KK[cell_type_j, cell_type_k] == 0:
                     current_session_binary_KK[cell_type_j, cell_type_k] = 1
 
+        # Make all 0 entries in current_session_KK_count to be 1, so that we don't divide by 0
+        current_session_KK_count[current_session_KK_count == 0] = 1
         multisession_KK_list.append(current_session_KK / current_session_KK_count)
         multisession_binary_KK_list.append(current_session_binary_KK)
 
@@ -509,3 +514,30 @@ def multisession_NN_to_KK_2(
     KK_result = np.sum(multisession_KK_list, axis=0)
 
     return KK_result / KK_count
+
+
+# This function again can be used for both connectivity strength AND connectivity probability.
+def experiment_KK_to_eval_KK(
+    experiment_KK: np.ndarray,
+    experiment_cell_type_order: list,
+    eval_cell_type_order: list,
+):
+    """
+    This function is used to convert experiment_KK to eval_KK, since eval cell type is a subset of experiment cell type.
+    The output KK will be a matrix with eval cell type order.
+    """
+
+    eval_KK = np.zeros((len(eval_cell_type_order), len(eval_cell_type_order)))
+    for eval_cell_type_i in eval_cell_type_order:
+        if eval_cell_type_i in experiment_cell_type_order:
+            experiment_index_i = experiment_cell_type_order.index(eval_cell_type_i)
+            eval_index_i = eval_cell_type_order.index(eval_cell_type_i)
+
+            for eval_cell_type_j in eval_cell_type_order:
+                if eval_cell_type_j in experiment_cell_type_order:
+                    experiment_index_j = experiment_cell_type_order.index(eval_cell_type_j)
+                    eval_index_j = eval_cell_type_order.index(eval_cell_type_j)
+
+                    eval_KK[eval_index_i, eval_index_j] = experiment_KK[experiment_index_i, experiment_index_j]
+
+    return eval_KK

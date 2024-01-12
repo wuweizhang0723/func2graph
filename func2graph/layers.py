@@ -136,7 +136,11 @@ class Attention(nn.Module):
         n, h, device = x.shape[-2], self.heads, x.device
 
         q = self.to_q(x)
+        for layer in self.to_q_fc_layers:
+            q = layer(q)
         k = self.to_k(x)
+        for layer in self.to_k_fc_layers:
+            k = layer(k)
         # v = self.to_v(x)
         v = x.clone()            # identity mapping
 

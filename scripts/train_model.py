@@ -65,6 +65,8 @@ if __name__ == "__main__":
     parser.add_argument("--heads", help="heads", default=1)
     parser.add_argument("--attention_layers", help="attention layers", default=1)
     parser.add_argument("--dim_key", default=64)
+    parser.add_argument("--to_q_layers", default=2)
+    parser.add_argument("--to_k_layers", default=2)
 
     parser.add_argument("--hidden_size_2", help="hidden size 2", default=258)
     parser.add_argument("--h_layers_2", help="h layers 2", default=2)
@@ -131,6 +133,8 @@ if __name__ == "__main__":
     heads = int(args.heads)
     attention_layers = int(args.attention_layers)
     dim_key = int(args.dim_key)
+    to_q_layers = int(args.to_q_layers)
+    to_k_layers = int(args.to_k_layers)
 
     hidden_size_2 = int(args.hidden_size_2)
     h_layers_2 = int(args.h_layers_2)
@@ -201,6 +205,10 @@ if __name__ == "__main__":
         + "_"
         + str(dim_key)
         + "_"
+        + str(to_q_layers)
+        + "_"
+        + str(to_k_layers)
+        + "_"
         + str(hidden_size_2)
         + "_"
         + str(h_layers_2)
@@ -257,6 +265,8 @@ if __name__ == "__main__":
             heads=heads,
             attention_layers=attention_layers,
             dim_key=dim_key,
+            to_q_layers=to_q_layers,
+            to_k_layers=to_k_layers,
             hidden_size_2=hidden_size_2,
             h_layers_2=h_layers_2,
             dropout=dropout,
@@ -297,14 +307,14 @@ if __name__ == "__main__":
         )
 
 
-    es = EarlyStopping(monitor=loss_function + " val_loss", patience=20)  ###########
+    es = EarlyStopping(monitor=loss_function + " val_loss", patience=30)  ###########
     checkpoint_callback = ModelCheckpoint(
         checkpoint_path, monitor=loss_function + " val_loss", mode="min", save_top_k=1
     )
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")
     trainer = pl.Trainer(
-        devices=[0],
+        devices=[1],
         accelerator="gpu",
         callbacks=[es, checkpoint_callback, lr_monitor],
         benchmark=False,
@@ -335,6 +345,8 @@ if __name__ == "__main__":
                 heads=heads,
                 attention_layers=attention_layers,
                 dim_key=dim_key,
+                to_q_layers=to_q_layers,
+                to_k_layers=to_k_layers,
                 hidden_size_2=hidden_size_2,
                 h_layers_2=h_layers_2,
                 dropout=dropout,
@@ -379,6 +391,8 @@ if __name__ == "__main__":
             x_hat = train_results[i][0]    # batch_size * (neuron_num*time)
             x = train_results[i][1]
             attention = train_results[i][2]
+            neuron_embedding = train_results[i][3]
+            
             attention = attention.view(-1, neuron_num, neuron_num)
 
             predictions.append(x_hat)

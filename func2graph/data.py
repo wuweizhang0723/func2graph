@@ -721,7 +721,11 @@ def generate_mouse_all_sessions_data(
     # Construct new UniqueID and cell type id
     ##############################################
     all_sessions_new_UniqueID, num_unqiue_neurons = tools.assign_unique_neuron_ids(all_sessions_original_UniqueID, num_neurons_per_session)
-    all_sessions_new_cell_type_id, cell_type2id = tools.assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per_session)
+    all_sessions_new_cell_type_id, cell_type_order = tools.assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per_session)
+
+    neuron_id_2_cell_type_id = np.zeros((num_unqiue_neurons,))
+    for i in range(len(all_sessions_new_UniqueID)):
+        neuron_id_2_cell_type_id[all_sessions_new_UniqueID[i].astype(int)] = all_sessions_new_cell_type_id[i]
 
 
     ##############################################
@@ -756,7 +760,7 @@ def generate_mouse_all_sessions_data(
     num_batch_per_session_TRAIN = train_dataset.num_batch_per_session
     num_batch_per_session_VAL = val_dataset.num_batch_per_session
 
-    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=shuffle, num_workers=num_workers)    # this is not real batch_size
+    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=num_workers)    # this is not real batch_size
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=shuffle, num_workers=num_workers)        # this is not real batch_size
 
-    return train_dataloader, val_dataloader, num_unqiue_neurons, cell_type2id, num_batch_per_session_TRAIN, num_batch_per_session_VAL, sessions_2_original_cell_type
+    return train_dataloader, val_dataloader, num_unqiue_neurons, cell_type_order, all_sessions_new_cell_type_id, num_batch_per_session_TRAIN, num_batch_per_session_VAL, sessions_2_original_cell_type, neuron_id_2_cell_type_id

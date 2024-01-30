@@ -141,7 +141,7 @@ class Baseline_2(Base_2):
         self,
         neuron_num=10,
         learning_rate=1e-4,
-        simulated_network_type=1,
+        simulated_network_type=2,
         model_random_seed=42,
         scheduler="plateau",
         loss_function="mse",             # mse, poisson

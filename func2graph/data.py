@@ -33,8 +33,11 @@ class data_simulator(Module):
         total_time=30000,
         data_random_seed=42,
         weight_type="cell_type",    # "random" or "simple" or "cell_type"
+        test=False,
     ):
         super().__init__()
+        self.test = test
+
         self.neuron_num = neuron_num
         self.dt = dt
         self.tau = tau
@@ -91,8 +94,14 @@ class data_simulator(Module):
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
         # x_t_1 = self.W_ij @ F.tanh(self.x_t)
-        x_t_1 = F.tanh((self.W_ij @ self.x_t) + self.b) + torch.normal(0,1,size=(self.neuron_num,))
+        signal = F.tanh((self.W_ij @ self.x_t) + self.b)
+        e = torch.normal(0,1,size=(self.neuron_num,))
+        x_t_1 = signal + e
+        # x_t_1 = (self.W_ij @ self.x_t) + self.b + torch.normal(0,1,size=(self.neuron_num,))
         self.x_t = x_t_1
+
+        if self.test == True:
+            return signal, e
         return x_t_1   # this is a vector of size neuron_num
     
 
@@ -675,7 +684,7 @@ def generate_mouse_all_sessions_data(
     split_ratio = 0.8,
 ):
     
-    directory = '../data/Mouse/Bugeon/'
+    directory = '../../data/Mouse/Bugeon/'
     input_sessions_file_path = [
         {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
         {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},
@@ -760,7 +769,7 @@ def generate_mouse_all_sessions_data(
     num_batch_per_session_TRAIN = train_dataset.num_batch_per_session
     num_batch_per_session_VAL = val_dataset.num_batch_per_session
 
-    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=num_workers)    # this is not real batch_size
+    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=shuffle, num_workers=num_workers)    # this is not real batch_size
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=shuffle, num_workers=num_workers)        # this is not real batch_size
 
     return train_dataloader, val_dataloader, num_unqiue_neurons, cell_type_order, all_sessions_new_cell_type_id, num_batch_per_session_TRAIN, num_batch_per_session_VAL, sessions_2_original_cell_type, neuron_id_2_cell_type_id

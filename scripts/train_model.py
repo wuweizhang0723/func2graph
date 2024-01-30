@@ -320,7 +320,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=400,
+        max_epochs=1000,
     )
 
     trainer.fit(single_model, trainloader, validloader)

@@ -65,6 +65,7 @@ class Base(pl.LightningModule):
             x, y = batch
             y_hat = self(x)
             
+            # pred = y_hat[:, :, -1:]
             pred = y_hat
             target = y
 
@@ -116,10 +117,11 @@ class Base(pl.LightningModule):
             x, y = batch
             y_hat = self(x)
             
+            # pred = y_hat[:, :, -1:]
             pred = y_hat
             target = y
 
-            result = torch.stack([y_hat.cpu().detach(), y.cpu().detach()], dim=1)
+            result = torch.stack([pred.cpu().detach(), target.cpu().detach()], dim=1)
 
         elif self.hparams.task_type == "mask":
             # x, y, mask_indices = batch
@@ -217,15 +219,15 @@ class Base(pl.LightningModule):
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         if self.hparams.task_type == "reconstruction":
             x = batch[0]   # batch_size * (neuron_num*time)
-            x_hat, attention = self(x)
+            x_hat, attention, neuron_embedding = self(x)
 
-            return x_hat, x, attention
+            return x_hat, x, attention, neuron_embedding
         
         elif self.hparams.task_type == "prediction":
             x, y = batch
-            y_hat, attention = self(x)
+            y_hat, attention, neuron_embedding = self(x)
 
-            return y_hat, y, attention
+            return y_hat, y, attention, neuron_embedding
         
         elif self.hparams.task_type == "mask":
             # x, y, mask_indices = batch
@@ -239,7 +241,7 @@ class Base(pl.LightningModule):
             #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
 
             x, y, mask_indices_i, mask_indices_j = batch
-            x_hat, attention = self(x)
+            x_hat, attention, neuron_embedding = self(x)
 
             # get the masked part from x_hat to be y_hat
             y_hat = torch.zeros(y.shape).to(y.device)
@@ -248,7 +250,7 @@ class Base(pl.LightningModule):
                 for j in range(mask_size):
                     y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
 
-            return y_hat, y, attention
+            return y_hat, y, attention, neuron_embedding
     
 
 
@@ -266,6 +268,8 @@ class Attention_Autoencoder(Base):
         heads=1,  # Attention
         attention_layers=1,
         dim_key=64,
+        to_q_layers=2,
+        to_k_layers=2,
         hidden_size_2=256, # MLP_2
         h_layers_2=2,
         dropout=0.2,
@@ -351,6 +355,8 @@ class Attention_Autoencoder(Base):
                 nn.Sequential(
                     Attention(
                         dim=dim_in,  # the last dimension of input
+                        to_q_layers=to_q_layers,
+                        to_k_layers=to_k_layers,
                         heads=heads,
                         dim_key=dim_key,
                         prediction_mode=self.prediction_mode,
@@ -361,17 +367,17 @@ class Attention_Autoencoder(Base):
             self.attentionlayers.append(
                 nn.Sequential(
                     nn.LayerNorm(dim_in),
-                    Residual(
-                        nn.Sequential(
-                            nn.Linear(dim_in, hidden_size_1 * 2),
-                            nn.Dropout(dropout),
-                            nn.ReLU(),
-                            nn.Linear(hidden_size_1 * 2, dim_in),
-                            nn.Dropout(dropout),
-                            nn.ReLU(),
-                        )
-                    ),
-                    nn.LayerNorm(dim_in),
+                    # Residual(
+                    #     nn.Sequential(
+                    #         nn.Linear(dim_in, hidden_size_1 * 2),
+                    #         nn.Dropout(dropout),
+                    #         nn.ReLU(),
+                    #         nn.Linear(hidden_size_1 * 2, dim_in),
+                    #         nn.Dropout(dropout),
+                    #         nn.ReLU(),
+                    #     )
+                    # ),
+                    # nn.LayerNorm(dim_in),
                 )
             )
 
@@ -406,7 +412,8 @@ class Attention_Autoencoder(Base):
         elif self.pos_enc_type == "lookup_table":
             # Add positional encoding
             idx = torch.arange(x.shape[1]).to(x.device)
-            x = x + self.embedding_table(idx)
+            neuron_embedding = self.embedding_table(idx)
+            x = x + neuron_embedding
             # embedding = einops.repeat(self.embedding_table(idx), 'n d -> b n d', b=x.shape[0])
             # x = torch.concat([x, embedding], dim=-1)
             x = self.layer_norm(x)
@@ -420,16 +427,15 @@ class Attention_Autoencoder(Base):
                 x, attn = x
                 attention_results.append(attn)
 
-        x = self.fc2(x)
-        for layer in self.fclayers2:
-            x = layer(x)
-
-        x = self.out(x)
+        # x = self.fc2(x)
+        # for layer in self.fclayers2:
+        #     x = layer(x)
+                
 
         if self.hparams.prediction_mode == True:
-            return x, attention_results[0]
+            return x[:, :, -1:], attention_results[0], neuron_embedding.clone()
         else:
-            return x
+            return x[:, :, -1:]
 
 
 
@@ -851,6 +857,8 @@ class Attention_With_Constraint(Base_2):
         heads=1,  # Attention
         attention_layers=1,
         dim_key=64,
+        to_q_layers=2,
+        to_k_layers=2,
         hidden_size_2=256, # MLP_2
         h_layers_2=2,
         dropout=0.2,
@@ -895,6 +903,8 @@ class Attention_With_Constraint(Base_2):
                         dim=dim_in,  # the last dimension of input
                         heads=heads,
                         dim_key=dim_key,
+                        to_q_layers=to_q_layers,
+                        to_k_layers=to_k_layers,
                         prediction_mode=True,  ##############################
                         activation = attention_activation,
                     ),

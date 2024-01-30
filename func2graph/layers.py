@@ -104,14 +104,14 @@ class Attention(nn.Module):
         self.to_q = nn.Linear(dim, dim_key * heads, bias=False)
         self.to_q_fc_layers = nn.ModuleList(
             nn.Sequential(
-                nn.Linear(dim_key * heads, dim_key * heads), nn.ReLU(), nn.Dropout(dropout)
+                nn.ReLU(), nn.Dropout(dropout), nn.Linear(dim_key * heads, dim_key * heads)
             )
             for layer in range(to_q_layers)
         )
         self.to_k = nn.Linear(dim, dim_key * heads, bias=False)
         self.to_k_fc_layers = nn.ModuleList(
             nn.Sequential(
-                nn.Linear(dim_key * heads, dim_key * heads), nn.ReLU(), nn.Dropout(dropout)
+                nn.ReLU(), nn.Dropout(dropout), nn.Linear(dim_key * heads, dim_key * heads)
             )
             for layer in range(to_k_layers)
         )

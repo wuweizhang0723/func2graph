@@ -8,7 +8,7 @@ import numpy as np
 from torchmetrics.functional.pairwise import pairwise_cosine_similarity
 
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cuda:3' if torch.cuda.is_available() else 'cpu'
 
 
 class Residual(nn.Module):
@@ -77,7 +77,7 @@ class PositionalEncoding(nn.Module):
 
 
 
-# Attention Layer ------------------------------------------------------------------------
+# Attention Layer ----------------------------------------------------------------------------------------------------
 #
 class Attention(nn.Module):
     def __init__(
@@ -149,19 +149,23 @@ class Attention(nn.Module):
         q = q * self.scale
 
         if self.activation == 'softmax':
-            logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            # logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            logits = einsum("b h i d, b h j d -> b h i j", q, k)
             attn0 = logits.softmax(dim=-1)  # softmax over the last dimension
         elif self.activation == 'sigmoid':
-            logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            # logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            logits = einsum("b h i d, b h j d -> b h i j", q, k)
             attn0 = F.sigmoid(logits)
         elif self.activation == 'tanh':
-            logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            # logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            logits = einsum("b h i d, b h j d -> b h i j", q, k)
             attn0 = F.tanh(logits)
         elif self.activation == 'none':
-            logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            # logits = einsum("b h i d, b h j d -> b h i j", q + self.rel_content_bias, k)
+            logits = einsum("b h i d, b h j d -> b h i j", q, k)
             attn0 = logits
         elif self.activation == 'cosine_similarity':
-            q = q + self.rel_content_bias
+            # q = q + self.rel_content_bias
             logits = torch.zeros(q.shape[0], q.shape[1], q.shape[2], q.shape[2], requires_grad=True).to(device)
             for i in range(q.shape[0]):
                 for j in range(q.shape[1]):
@@ -183,6 +187,87 @@ class Attention(nn.Module):
         
 
 
+# This attention has constrain that W_Q @ W_k^T is 0 on upper triangular part of the matrix,
+# which makes the T*T map (W_Q @ W_k^T) to be causal.
+#
+class Causal_Temporal_Map_Attention(nn.Module):
+    def __init__(
+        self,
+        dim,
+        *,
+        dropout=0.0,
+        pos_dropout=0.0,
+        prediction_mode=False,
+        activation='none', # 'sigmoid' or 'tanh' or 'softmax' or 'none' or 'cosine_similarity'
+        causal_temporal_map='lower_triangle',  # 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+        diff=20,
+    ):
+        super().__init__()
+        self.activation = activation
+        self.scale = dim ** -0.5
+
+        self.causal_temporal_map = causal_temporal_map
+        self.diff = diff
+
+        # Q, K, V
+
+        self.W_Q_W_KT = nn.Linear(dim, dim, bias=False)
+
+        # dropouts
+
+        self.attn_dropout = nn.Dropout(dropout)
+
+        # prediction mode
+
+        self.prediction_mode = prediction_mode
+
+        # make mask, tau=1, [1,0], [2,1], [3,2], [4,3], ..., [dim-1,dim-1-1], [dim,dim-1]
+        # tau=2, [2,0], [3,1], [4,2], [5,3], ..., [dim-1,dim-1-2], [dim,dim-2]
+        if causal_temporal_map == 'off_diagonal_1' or causal_temporal_map == 'off_diagonal':
+            self.mask = torch.zeros(dim, dim, device=device)  ################# TODO
+            for i in range(diff, dim):
+                j = i - diff
+                self.mask[i][j] = 1  ########
+
+    def forward(self, x):
+
+        # mask lower triangular part of W_Q_W_KT, mask should take transpose
+        # self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
+
+        # mask
+        # W_Q_W_KT.weight is (out_features, in_features), so mask should take transpose
+        # self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data * self.mask.T
+
+        if self.causal_temporal_map == 'off_diagonal_1':
+            self.W_Q_W_KT.weight.data = torch.ones(self.W_Q_W_KT.weight.data.shape[0], self.W_Q_W_KT.weight.data.shape[1], device=device) * self.mask.T
+        elif self.causal_temporal_map == 'off_diagonal':
+            self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data * self.mask.T
+        elif self.causal_temporal_map == 'lower_triangle':
+            self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
+        
+
+        v = x.clone()  # identity mapping
+
+        x_ = self.W_Q_W_KT(x)  # (b, n, t)
+
+        # x_ = x_ * self.scale
+
+        logits = einsum("b n t, b m t -> b n m", x_, x)
+        attn0 = logits
+
+        attn = self.attn_dropout(attn0)
+
+        out = einsum("b n m, b m t -> b n t", attn, v)
+
+        if self.prediction_mode == True:
+            print('1')
+            return out, attn0
+        else:
+            return out
+
+
+
+        
 
 # spatial_temporal_1: spatial attention has no value matrix
 # spatial_temporal_2: temporal attention has no value matrix

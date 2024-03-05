@@ -217,7 +217,7 @@ if __name__ == "__main__":
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")
     trainer = pl.Trainer(
-        devices=[1],
+        devices=[3],
         accelerator="gpu",
         callbacks=[es, checkpoint_callback, lr_monitor],
         benchmark=False,
@@ -267,7 +267,7 @@ if __name__ == "__main__":
         ground_truths[i] = torch.cat(ground_truths[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
         attentions[i] = torch.cat(attentions[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
 
-        # get average attention across
+        # get average attention across samples in each session
         all_sessions_avg_attention_NN.append(np.mean(attentions[i], axis=0))   # neuron_num * neuron_num
 
 
@@ -420,25 +420,25 @@ if __name__ == "__main__":
     GT_prob_connectivity[:] = np.nan
 
     # replace ground truth prob connectivity with GT prob connectivity
-    GT_prob_connectivity[eval_cell_type_order.index['EC']][eval_cell_type_order.index['EC']] = 13/229
-    GT_prob_connectivity[eval_cell_type_order.index['Pvalb']][eval_cell_type_order.index['EC']] = 22/53
-    GT_prob_connectivity[eval_cell_type_order.index['Sst']][eval_cell_type_order.index['EC']]= 20/67
-    GT_prob_connectivity[eval_cell_type_order.index['Vip']][eval_cell_type_order.index['EC']] = 11/68
+    GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('EC')] = 13/229
+    GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('EC')] = 22/53
+    GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('EC')]= 20/67
+    GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('EC')] = 11/68
     
-    GT_prob_connectivity[eval_cell_type_order.index['EC']][eval_cell_type_order.index['Pvalb']] = 18/52
-    GT_prob_connectivity[eval_cell_type_order.index['Pvalb']][eval_cell_type_order.index['Pvalb']] = 45/114
-    GT_prob_connectivity[eval_cell_type_order.index['Sst']][eval_cell_type_order.index['Pvalb']] = 8/88
-    GT_prob_connectivity[eval_cell_type_order.index['Vip']][eval_cell_type_order.index['Pvalb']] = 0/54
+    GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Pvalb')] = 18/52
+    GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Pvalb')] = 45/114
+    GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Pvalb')] = 8/88
+    GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Pvalb')] = 0/54
 
-    GT_prob_connectivity[eval_cell_type_order.index['EC']][eval_cell_type_order.index['Sst']] = 13/56
-    GT_prob_connectivity[eval_cell_type_order.index['Pvalb']][eval_cell_type_order.index['Sst']] = 15/84
-    GT_prob_connectivity[eval_cell_type_order.index['Sst']][eval_cell_type_order.index['Sst']] = 8/154
-    GT_prob_connectivity[eval_cell_type_order.index['Vip']][eval_cell_type_order.index['Sst']] = 25/84
+    GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Sst')] = 13/56
+    GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Sst')] = 15/84
+    GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Sst')] = 8/154
+    GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Sst')] = 25/84
 
-    GT_prob_connectivity[eval_cell_type_order.index['EC']][eval_cell_type_order.index['Vip']] = 3/62
-    GT_prob_connectivity[eval_cell_type_order.index['Pvalb']][eval_cell_type_order.index['Vip']] = 1/54
-    GT_prob_connectivity[eval_cell_type_order.index['Sst']][eval_cell_type_order.index['Vip']] = 12/87
-    GT_prob_connectivity[eval_cell_type_order.index['Vip']][eval_cell_type_order.index['Vip']] = 2/209
+    GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Vip')] = 3/62
+    GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Vip')] = 1/54
+    GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Vip')] = 12/87
+    GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Vip')] = 2/209
 
     # get correlation
     corr_strength_KK = stats.pearsonr(GT_strength_connectivity.flatten(), eval_KK_strength.flatten())[0]
@@ -512,6 +512,7 @@ if __name__ == "__main__":
     plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
     plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
     plt.savefig(output_path + "/GT_strength.png")
+    plt.close()
 
     plt.imshow(GT_prob_connectivity, interpolation="nearest", cmap='bone')
     plt.colorbar()

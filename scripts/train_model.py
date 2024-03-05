@@ -35,8 +35,8 @@ if __name__ == "__main__":
     parser.add_argument("--spike_neuron_num", default=2)
     parser.add_argument("--spike_input", default=5)
 
-    parser.add_argument("--weight_scale", default=1)
-    parser.add_argument("--init_scale", default=1)
+    parser.add_argument("--weight_scale", default=0.1)
+    parser.add_argument("--init_scale", default=0.1)
 
     parser.add_argument("--total_time", help="total time", default=30000)
     parser.add_argument("--data_random_seed", help="data random seed", default=42)
@@ -52,6 +52,7 @@ if __name__ == "__main__":
     parser.add_argument("--predict_window_size", default=100)
 
     parser.add_argument("--data_type", default="wuwei")   # "ziyu"
+    parser.add_argument("--spatial_partial_measurement", default=200)   # between 0 and neuron_num
 
     # Model
     parser.add_argument("--model_random_seed", default=42)
@@ -87,6 +88,10 @@ if __name__ == "__main__":
 
     parser.add_argument("--weight_decay", default=0)
 
+    parser.add_argument("--causal_temporal_map", default='none')   # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+    parser.add_argument("--causal_temporal_map_diff", default=1)   # 1 or 2 or 3, ...
+    parser.add_argument("--l1_on_causal_temporal_map", default=0)   # alpha penalty
+
     # Baseline_2
 
 
@@ -121,6 +126,7 @@ if __name__ == "__main__":
     predict_window_size = int(args.predict_window_size)
 
     data_type = args.data_type
+    spatial_partial_measurement = int(args.spatial_partial_measurement)
 
     # Model
     model_random_seed = int(args.model_random_seed)
@@ -155,6 +161,10 @@ if __name__ == "__main__":
 
     weight_decay = float(args.weight_decay)
 
+    causal_temporal_map = args.causal_temporal_map
+    causal_temporal_map_diff = int(args.causal_temporal_map_diff)
+    l1_on_causal_temporal_map = float(args.l1_on_causal_temporal_map)   # alpha penalty
+
 
 
     output_path = (
@@ -164,6 +174,8 @@ if __name__ == "__main__":
         + data_type
         + "_"
         + str(neuron_num)
+        + "_"
+        + str(spatial_partial_measurement)
         + "_"
         + str(dt)
         + "_"
@@ -224,12 +236,17 @@ if __name__ == "__main__":
         + scheduler
         + "_"
         + str(weight_decay)
+        + "_"
+        + str(causal_temporal_map)
+        + "_"
+        + str(causal_temporal_map_diff)
+        + "_"
+        + str(l1_on_causal_temporal_map)
     )
 
     checkpoint_path = output_path
     log_path = out_folder + "/log"
 
-    
     data_result = data.generate_simulation_data(
         neuron_num=neuron_num,
         dt=dt,
@@ -246,6 +263,7 @@ if __name__ == "__main__":
         task_type=task_type,
         predict_window_size=predict_window_size,
         data_type=data_type,
+        spatial_partial_measurement=spatial_partial_measurement,
     )
     if data_type == "wuwei" or data_type == "ziyu":
         trainloader, validloader, weight_matrix, cell_type_ids, cell_type2id, cell_type_count = data_result
@@ -254,6 +272,10 @@ if __name__ == "__main__":
         trainloader, validloader, weight_matrix = data_result
         weight_matrix_E = weight_matrix[0].detach().numpy()
         weight_matrix_Chem = weight_matrix[1].detach().numpy()
+
+    # for spatial_partial_measurement !!!!!!!!!!!!!!!!!!!
+    if spatial_partial_measurement != neuron_num:
+        neuron_num = spatial_partial_measurement
 
     if model_type == "Attention_Autoencoder":
         single_model = models.Attention_Autoencoder(
@@ -278,6 +300,9 @@ if __name__ == "__main__":
             attention_activation=attention_activation,
             scheduler=scheduler,
             weight_decay=weight_decay,
+            causal_temporal_map=causal_temporal_map,
+            causal_temporal_map_diff=causal_temporal_map_diff,
+            l1_on_causal_temporal_map=l1_on_causal_temporal_map,
         )
     elif model_type == "Baseline_2":
         single_model = baselines.Baseline_2(
@@ -314,7 +339,7 @@ if __name__ == "__main__":
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")
     trainer = pl.Trainer(
-        devices=[1],
+        devices=[3],
         accelerator="gpu",
         callbacks=[es, checkpoint_callback, lr_monitor],
         benchmark=False,
@@ -359,6 +384,9 @@ if __name__ == "__main__":
                 attention_activation=attention_activation,
                 scheduler=scheduler,
                 weight_decay=weight_decay,
+                causal_temporal_map=causal_temporal_map,
+                causal_temporal_map_diff=causal_temporal_map_diff,
+                l1_on_causal_temporal_map=l1_on_causal_temporal_map,
             )
         elif model_type == "Spatial_Temporal_Attention_Model":
             predict_mode_model = models.Spatial_Temporal_Attention_Model(

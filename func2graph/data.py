@@ -28,8 +28,9 @@ class data_simulator(Module):
         tau=0.025,    # momentum of the system, the larger tau is the slower the system returns back to equilibrium
         spike_neuron_num=2,
         spike_input=1,
-        weight_scale = 1,
-        init_scale = 1,
+        weight_scale = 0.1,
+        init_scale = 0.1,
+        error_scale = 1,
         total_time=30000,
         data_random_seed=42,
         weight_type="cell_type",    # "random" or "simple" or "cell_type"
@@ -37,6 +38,7 @@ class data_simulator(Module):
     ):
         super().__init__()
         self.test = test
+        self.error_scale = error_scale
 
         self.neuron_num = neuron_num
         self.dt = dt
@@ -48,7 +50,7 @@ class data_simulator(Module):
         torch.manual_seed(data_random_seed)
         np.random.seed(data_random_seed)
 
-        self.b = torch.randn(neuron_num)    # constant input for each neuron
+        self.b = weight_scale * torch.randn(neuron_num)    # constant input for each neuron
 
         if weight_type == "random":
             self.W_ij = weight_scale * torch.randn(neuron_num, neuron_num) # W_ij initialization
@@ -80,6 +82,7 @@ class data_simulator(Module):
                 self.W_ij += eigenvalues[i] * (eigenvectors_1[i].view(neuron_num,1)@eigenvectors_2[i].view(1,neuron_num))
         elif weight_type == "cell_type":
             self.W_ij, self.cell_type2id, self.cell_type_ids, self.cell_type_count = tools.construct_weight_matrix_cell_type(neuron_num)
+            self.W_ij = weight_scale * self.W_ij
 
         self.x_t = init_scale * torch.randn(neuron_num)    # x_(t=0) initialization
 
@@ -95,7 +98,7 @@ class data_simulator(Module):
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
         # x_t_1 = self.W_ij @ F.tanh(self.x_t)
         signal = F.tanh((self.W_ij @ self.x_t) + self.b)
-        e = torch.normal(0,1,size=(self.neuron_num,))
+        e = torch.normal(0,1,size=(self.neuron_num,)) * self.error_scale
         x_t_1 = signal + e
         # x_t_1 = (self.W_ij @ self.x_t) + self.b + torch.normal(0,1,size=(self.neuron_num,))
         self.x_t = x_t_1
@@ -116,18 +119,18 @@ def generate_simulation_data(
     init_scale = 1,
     total_time = 30000,
     data_random_seed=42,
-    weight_type="random",
-    # train_data_size = 20000,
+    weight_type="cell_type",
     window_size = 200, # -------------------------------
     batch_size = 32,
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
-    task_type = "reconstruction",    # "reconstruction" or "prediction" or "baseline_2" or "mask"
+    task_type = "prediction",    # "reconstruction" or "prediction" or "baseline_2" or "mask"
     predict_window_size = 100,
     data_type = "wuwei", #"ziyu", "c_elegans", "mouse"
     mask_size = 100,    # the number of elements to mask for each sample (each window)
     normalization = "session",   # "neuron" or "session" or "none" or "log"
+    spatial_partial_measurement = 200,  # the number of neurons to measured, between 0 and neuron_num
 ) -> DataLoader:
     """
     Generate dataset.
@@ -174,16 +177,13 @@ def generate_simulation_data(
 
         train_data_size = 1000  ########################
 
-    elif data_type == "mouse":
-        directory = '../data/Mouse/Bugeon/'
-        date_exp = 'SB025/2019-10-07/'
-        input_setting = 'Blank/01/'
-
-        data, neuron_ttypes, connectivity = mouse_data_simulator(directory, date_exp, input_setting, normalization)
-        total_time = data.shape[1]
-        neuron_num = data.shape[0]
-        data = torch.from_numpy(data).float()
-
+    if spatial_partial_measurement != neuron_num:
+        # choose a subset of neurons to measure, without replacement
+        idx = torch.randperm(neuron_num)[:spatial_partial_measurement]
+        # sort the indices
+        idx = torch.sort(idx)[0] # !!!!!!
+        print('idx: ', idx)
+        data = data[idx, :]
     print(data.shape)
 
     # Normalize on entire dataset
@@ -214,7 +214,10 @@ def generate_simulation_data(
         for i in range(val_data_size):
             index = val_start_indices[i]
             sample = val_data[:, index:index+window_size]
-            val_data_result.append(sample.view(1, neuron_num, window_size))
+            if spatial_partial_measurement != neuron_num:
+                val_data_result.append(sample.view(1, spatial_partial_measurement, window_size))
+            else:
+                val_data_result.append(sample.view(1, neuron_num, window_size))
         val_data = torch.cat(val_data_result, dim=0)
 
         print("val_data.shape: ", val_data.shape)
@@ -235,7 +238,10 @@ def generate_simulation_data(
         for i in range(train_data_size):
             index = train_start_indices[i]
             sample = train_data[:, index:index+window_size]
-            train_data_result.append(sample.view(1, neuron_num, window_size))
+            if spatial_partial_measurement != neuron_num:
+                train_data_result.append(sample.view(1, spatial_partial_measurement, window_size))
+            else:
+                train_data_result.append(sample.view(1, neuron_num, window_size))
         train_data = torch.cat(train_data_result, dim=0)
 
         if (task_type == "mask"):
@@ -315,14 +321,32 @@ def generate_simulation_data(
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
-    if data_type == "ziyu":
-        return train_dataloader, val_dataloader, torch.from_numpy(S)
-    elif data_type == "wuwei":
-        return train_dataloader, val_dataloader, simulator.W_ij, simulator.cell_type_ids, simulator.cell_type2id, simulator.cell_type_count
-    elif data_type == "c_elegans":
-        return train_dataloader, val_dataloader, (torch.from_numpy(S_E), torch.from_numpy(S_Chem))
-    elif data_type == "mouse":
-        return train_dataloader, val_dataloader, torch.from_numpy(connectivity), neuron_ttypes
+    if spatial_partial_measurement == neuron_num:
+        if data_type == "ziyu":
+            return train_dataloader, val_dataloader, torch.from_numpy(S)
+        elif data_type == "wuwei":
+            return train_dataloader, val_dataloader, simulator.W_ij, simulator.cell_type_ids, simulator.cell_type2id, simulator.cell_type_count
+        elif data_type == "c_elegans":
+            return train_dataloader, val_dataloader, (torch.from_numpy(S_E), torch.from_numpy(S_Chem))
+    else:
+        if data_type == "wuwei":
+            new_W_ij = torch.zeros((spatial_partial_measurement, spatial_partial_measurement))
+            for i in range(spatial_partial_measurement):
+                for j in range(spatial_partial_measurement):
+                    new_W_ij[i][j] = simulator.W_ij[idx[i]][idx[j]]
+
+            new_cell_type_ids = []
+            for i in range(spatial_partial_measurement):
+                new_cell_type_ids.append(simulator.cell_type_ids[idx[i]])
+
+            id2cell_type = {0:'EC', 1:'Pv', 2:'Sst', 3:'Vip'}
+            new_cell_type_count = {'EC':0, 'Pv':0, 'Sst':0, 'Vip':0}
+            for i in range(spatial_partial_measurement):
+                cell_type = id2cell_type[new_cell_type_ids[i]]
+                new_cell_type_count[cell_type] += 1
+
+            return train_dataloader, val_dataloader, new_W_ij, new_cell_type_ids, simulator.cell_type2id, new_cell_type_count
+    
 
 
 
@@ -638,6 +662,10 @@ def load_mouse_data_session(directory, date_exp, input_setting, normalization):
 
 
 
+
+
+
+
 ########################################################################################
 ########################################################################################
 # For mouse data with multiple sessions,
@@ -684,7 +712,7 @@ def generate_mouse_all_sessions_data(
     split_ratio = 0.8,
 ):
     
-    directory = '../../data/Mouse/Bugeon/'
+    directory = '../data/Mouse/Bugeon/'
     input_sessions_file_path = [
         {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
         {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},

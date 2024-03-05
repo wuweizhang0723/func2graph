@@ -13,6 +13,7 @@ from func2graph.layers import (
     Attention,
     PositionalEncoding,
     Spatial_Temporal_Attention,
+    Causal_Temporal_Map_Attention,
 )
 
 
@@ -94,7 +95,7 @@ class Base(pl.LightningModule):
             target = y
 
         if self.hparams.loss_function == "mse":
-            loss = F.mse_loss(pred, target, reduction="mean")
+            loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
         elif self.hparams.loss_function == "poisson":
             loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
         elif self.hparams.loss_function == "gaussian":
@@ -268,10 +269,10 @@ class Attention_Autoencoder(Base):
         heads=1,  # Attention
         attention_layers=1,
         dim_key=64,
-        to_q_layers=2,
-        to_k_layers=2,
-        hidden_size_2=256, # MLP_2
-        h_layers_2=2,
+        to_q_layers=0,
+        to_k_layers=0,
+        hidden_size_2=64, # MLP_2
+        h_layers_2=0,
         dropout=0.2,
         learning_rate=1e-4,
         scheduler="plateau",
@@ -281,13 +282,18 @@ class Attention_Autoencoder(Base):
         predict_window_size = 100,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
-        attention_activation = "softmax", # "softmax" or "sigmoid" or "tanh"
+        attention_activation = "none", # "softmax" or "sigmoid" or "tanh", "none"
         weight_decay = 0,
+        causal_temporal_map = 'none',  # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+        causal_temporal_map_diff = 1,
+        l1_on_causal_temporal_map = 0,
     ):
         super().__init__()
         self.save_hyperparameters()
 
         self.prediction_mode = prediction_mode
+
+        self.predict_window_size = predict_window_size
 
         torch.manual_seed(model_random_seed)
 
@@ -336,6 +342,8 @@ class Attention_Autoencoder(Base):
         else:
             dim_in = hidden_size_1
 
+        dim_in = hidden_size_1
+
         self.attentionlayers = nn.ModuleList()
 
         for layer in range(attention_layers):
@@ -351,19 +359,34 @@ class Attention_Autoencoder(Base):
             #         ),
             #     )
             # )
+            #if causal_temporal_map != 'none':
             self.attentionlayers.append(
                 nn.Sequential(
-                    Attention(
+                    Causal_Temporal_Map_Attention(
                         dim=dim_in,  # the last dimension of input
-                        to_q_layers=to_q_layers,
-                        to_k_layers=to_k_layers,
-                        heads=heads,
-                        dim_key=dim_key,
                         prediction_mode=self.prediction_mode,
                         activation = attention_activation,
+                        causal_temporal_map = causal_temporal_map,
+                        diff = causal_temporal_map_diff,
                     ),
                 )
             )
+            # else:
+            #     self.attentionlayers.append(
+            #         nn.Sequential(
+            #             Attention(
+            #                 dim=dim_in,  # the last dimension of input
+            #                 to_q_layers=to_q_layers,
+            #                 to_k_layers=to_k_layers,
+            #                 heads=heads,
+            #                 dim_key=dim_key,
+            #                 prediction_mode=self.prediction_mode,
+            #                 activation = attention_activation,
+            #             ),
+            #         )
+            #     )
+
+            # Layer norm after attention layer makes training loss more stable
             self.attentionlayers.append(
                 nn.Sequential(
                     nn.LayerNorm(dim_in),
@@ -416,7 +439,8 @@ class Attention_Autoencoder(Base):
             x = x + neuron_embedding
             # embedding = einops.repeat(self.embedding_table(idx), 'n d -> b n d', b=x.shape[0])
             # x = torch.concat([x, embedding], dim=-1)
-            x = self.layer_norm(x)
+            
+            x = self.layer_norm(x)   ########################
 
         attention_results = []
         print('length: ', len(self.attentionlayers))
@@ -433,9 +457,10 @@ class Attention_Autoencoder(Base):
                 
 
         if self.hparams.prediction_mode == True:
-            return x[:, :, -1:], attention_results[0], neuron_embedding.clone()
+            # return x[:, :, -1*self.predict_window_size:], attention_results[0], neuron_embedding.clone()
+            return x[:, :, -1*self.predict_window_size:], attention_results[0], neuron_embedding.clone()
         else:
-            return x[:, :, -1:]
+            return x[:, :, -1*self.predict_window_size:]
 
 
 
@@ -882,6 +907,8 @@ class Attention_With_Constraint(Base_2):
         # self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
         self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(0, 1))
 
+        self.predict_window_size = predict_window_size
+
         # MLP_1
 
         hidden_size_1 = window_size - predict_window_size
@@ -913,17 +940,17 @@ class Attention_With_Constraint(Base_2):
             self.attentionlayers.append(
                 nn.Sequential(
                     nn.LayerNorm(dim_in),
-                    Residual(
-                        nn.Sequential(
-                            nn.Linear(dim_in, hidden_size_1 * 2),
-                            nn.Dropout(dropout),
-                            nn.ReLU(),
-                            nn.Linear(hidden_size_1 * 2, dim_in),
-                            nn.Dropout(dropout),
-                            nn.ReLU(),
-                        )
-                    ),
-                    nn.LayerNorm(dim_in),
+                    # Residual(
+                    #     nn.Sequential(
+                    #         nn.Linear(dim_in, hidden_size_1 * 2),
+                    #         nn.Dropout(dropout),
+                    #         nn.ReLU(),
+                    #         nn.Linear(hidden_size_1 * 2, dim_in),
+                    #         nn.Dropout(dropout),
+                    #         nn.ReLU(),
+                    #     )
+                    # ),
+                    # nn.LayerNorm(dim_in),
                 )
             )
 
@@ -957,14 +984,14 @@ class Attention_With_Constraint(Base_2):
                 x, attn = x
                 attention_results.append(attn)
 
-        x = self.fc2(x)
-        for layer in self.fclayers2:
-            x = layer(x)
+        # x = self.fc2(x)
+        # for layer in self.fclayers2:
+        #     x = layer(x)
 
-        x = self.out(x)
+        # x = self.out(x)
 
         batch_neuron_num = attention_results[0].shape[-1]
-        return x, attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+        return x[:, :, -1*self.predict_window_size:], attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
     
 
 

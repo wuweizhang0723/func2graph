@@ -787,9 +787,6 @@ class Base_2(pl.LightningModule):
     
         # Expand the first dimension of expanded_cell_type_level_constraint to batch_size
         expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
-        # print('eeeee', expanded_cell_type_level_constraint.requires_grad)
-        # print('kkkkkk', cell_type_level_constraint.requires_grad)
-        # print('aaaaaaa', neuron_level_attention.requires_grad)
 
         # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
         var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var

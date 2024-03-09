@@ -81,7 +81,7 @@ class data_simulator(Module):
             for i in range(rank):
                 self.W_ij += eigenvalues[i] * (eigenvectors_1[i].view(neuron_num,1)@eigenvectors_2[i].view(1,neuron_num))
         elif weight_type == "cell_type":
-            self.W_ij, self.cell_type2id, self.cell_type_ids, self.cell_type_count = tools.construct_weight_matrix_cell_type(neuron_num)
+            self.W_ij, self.cell_type_order, self.cell_type_ids, self.cell_type_count = tools.construct_weight_matrix_cell_type(neuron_num)
             self.W_ij = weight_scale * self.W_ij
 
         self.x_t = init_scale * torch.randn(neuron_num)    # x_(t=0) initialization
@@ -325,7 +325,7 @@ def generate_simulation_data(
         if data_type == "ziyu":
             return train_dataloader, val_dataloader, torch.from_numpy(S)
         elif data_type == "wuwei":
-            return train_dataloader, val_dataloader, simulator.W_ij, simulator.cell_type_ids, simulator.cell_type2id, simulator.cell_type_count
+            return train_dataloader, val_dataloader, simulator.W_ij, simulator.cell_type_ids, simulator.cell_type_order, simulator.cell_type_count
         elif data_type == "c_elegans":
             return train_dataloader, val_dataloader, (torch.from_numpy(S_E), torch.from_numpy(S_Chem))
     else:

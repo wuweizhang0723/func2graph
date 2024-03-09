@@ -266,7 +266,8 @@ if __name__ == "__main__":
         spatial_partial_measurement=spatial_partial_measurement,
     )
     if data_type == "wuwei" or data_type == "ziyu":
-        trainloader, validloader, weight_matrix, cell_type_ids, cell_type2id, cell_type_count = data_result
+        # cell_type_ids records the cell type of each neuron
+        trainloader, validloader, weight_matrix, cell_type_ids, cell_type_order, cell_type_count = data_result
         weight_matrix = weight_matrix.detach().numpy()
     elif data_type == "c_elegans":
         trainloader, validloader, weight_matrix = data_result

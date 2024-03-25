@@ -86,8 +86,8 @@ class Attention(nn.Module):
         *,
         heads=8,
         dim_key=64,    ########### 16 for simulated data
-        to_q_layers=2,
-        to_k_layers=2,
+        to_q_layers=0,
+        to_k_layers=0,
         dim_value=16,
         dropout=0.0,
         pos_dropout=0.0,

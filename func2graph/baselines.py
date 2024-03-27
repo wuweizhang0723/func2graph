@@ -32,6 +32,23 @@ def get_activity_correlation_matrix(activity, type="pearson"):
     return correlation_matrix
 
 
+def get_activity_cross_correlation_matrix(activity, tau=1):
+    neuron_num = activity.shape[0]
+    cross_corr = np.zeros((neuron_num, neuron_num))
+
+    for i in range(neuron_num):
+        for j in range(neuron_num):
+            postsynaptic = activity[i, tau:]
+            if tau == 0:
+                presynaptic = activity[j, :]
+            else:
+                presynaptic = activity[j, :-tau]
+            # normalize
+            # presynaptic = (presynaptic - np.mean(presynaptic)) / np.std(presynaptic)
+            # postsynaptic = (postsynaptic - np.mean(postsynaptic)) / np.std(postsynaptic)
+            cross_corr[i, j] = np.corrcoef(presynaptic, postsynaptic)[0, 1]
+    return cross_corr
+
 
 
 ##################

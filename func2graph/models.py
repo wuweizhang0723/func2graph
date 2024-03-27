@@ -269,8 +269,8 @@ class Attention_Autoencoder(Base):
         learning_rate=1e-4,
         scheduler="plateau",
         prediction_mode=False,
-        pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
-        task_type = "reconstruction",    # "reconstruction" or "prediction" or "mask"
+        pos_enc_type="lookup_table",  # "sin_cos" or "lookup_table" or "none"
+        task_type = "prediction",    # "reconstruction" or "prediction" or "mask"
         predict_window_size = 100,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
@@ -592,9 +592,9 @@ class Attention_With_Constraint_sim(Base_3):
         attention_layers=1,  # Attention
         learning_rate=1e-4,
         scheduler="plateau",
-        pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
-        task_type = "reconstruction",    # "reconstruction" or "prediction" or "mask"
-        predict_window_size = 100,
+        pos_enc_type="lookup_table",  # "sin_cos" or "lookup_table" or "none"
+        task_type = "prediction",    # "reconstruction" or "prediction" or "mask"
+        predict_window_size=1,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         attention_activation = "none", # "softmax" or "sigmoid" or "tanh", "none"
         weight_decay = 0,
@@ -657,6 +657,8 @@ class Attention_With_Constraint_sim(Base_3):
                 )
             )
 
+        self.out = nn.Linear(dim_in, predict_window_size)     ########################
+
     def forward(self, x): # x: batch_size * (neuron_num*time)
         if self.pos_enc_type == "sin_cos":
             # Add positional encoding
@@ -678,7 +680,8 @@ class Attention_With_Constraint_sim(Base_3):
                 x, attn = x
                 attention_results.append(attn)
             
-        return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
+        # return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
+        return self.out(x), attention_results[0], self.cell_type_level_constraint
 
 
 

@@ -25,7 +25,7 @@ class data_simulator(Module):
         self, 
         neuron_num: int, 
         dt=0.001, 
-        tau=0.025,    # momentum of the system, the larger tau is the slower the system returns back to equilibrium
+        tau=1,    # 1, 2, 3, 4, 5 ...
         spike_neuron_num=2,
         spike_input=1,
         weight_scale = 0.1,
@@ -52,17 +52,12 @@ class data_simulator(Module):
 
         self.b = weight_scale * torch.randn(neuron_num)    # constant input for each neuron
 
+        self.activity = []     # store the activity of each neuron at each time step so far（total_time x neuron_num)
+        for i in range(int(tau)):
+            self.activity.append(init_scale * torch.randn(neuron_num))
+
         if weight_type == "random":
             self.W_ij = weight_scale * torch.randn(neuron_num, neuron_num) # W_ij initialization
-        elif weight_type == "random_sparse":
-            # self.W_ij = torch.zeros(neuron_num, neuron_num)
-            self.W_ij = weight_scale * 0.5 * torch.randn(neuron_num, neuron_num)
-            for i in range(0, 5):
-                self.W_ij[i][8-i] = 1
-                self.W_ij[8-i][i] = 1
-            for i in range(1, 6):
-                self.W_ij[i][10-i] = 1
-                self.W_ij[10-i][i] = 1
         elif weight_type == "sparse":
             self.W_ij = torch.zeros(neuron_num, neuron_num)
             for i in range(0, 5):
@@ -90,18 +85,25 @@ class data_simulator(Module):
 
     def forward(self, current_time_step):
         # For each time step, randomly choose 2 neurons to add input=1
-        selected = self.selected_neurons[current_time_step]
-        I_t = torch.zeros(self.neuron_num)
-        I_t[selected] = self.spike_input
+        # selected = self.selected_neurons[current_time_step]
+        # I_t = torch.zeros(self.neuron_num)
+        # I_t[selected] = self.spike_input
 
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
         # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
         # x_t_1 = self.W_ij @ F.tanh(self.x_t)
-        signal = F.tanh((self.W_ij @ self.x_t) + self.b)
+        # if self.tau == 1:
+        #     signal = F.tanh((self.W_ij @ self.x_t) + self.b)
+        #     e = torch.normal(0,1,size=(self.neuron_num,)) * self.error_scale
+        #     x_t_1 = signal + e
+        #     # x_t_1 = (self.W_ij @ self.x_t) + self.b + torch.normal(0,1,size=(self.neuron_num,))
+        #     self.x_t = x_t_1
+        # elif self.tau > 1:
+        signal = F.tanh((self.W_ij @ self.activity[-int(self.tau)]) + self.b)
         e = torch.normal(0,1,size=(self.neuron_num,)) * self.error_scale
         x_t_1 = signal + e
-        # x_t_1 = (self.W_ij @ self.x_t) + self.b + torch.normal(0,1,size=(self.neuron_num,))
-        self.x_t = x_t_1
+
+        self.activity.append(x_t_1)
 
         if self.test == True:
             return signal, e

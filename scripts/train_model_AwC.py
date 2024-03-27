@@ -30,7 +30,7 @@ if __name__ == "__main__":
     # Data
     parser.add_argument("--neuron_num", help="the number of neurons", type=int, default=10)
     parser.add_argument("--dt", help="dt", default=0.001)
-    parser.add_argument("--tau", help="tau", default=0.3)
+    parser.add_argument("--tau", help="tau", default=1)
     parser.add_argument("--spike_neuron_num", default=2)
     parser.add_argument("--spike_input", default=5)
 
@@ -124,6 +124,10 @@ if __name__ == "__main__":
     output_path = (
         out_folder
         + model_type
+        + "_"
+        + str(tau)
+        + "_"
+        + str(predict_window_size)
         + "_"
         + str(data_type)
         + "_"
@@ -361,6 +365,28 @@ if __name__ == "__main__":
         corr_prob_prior_KK = stats.pearsonr(cutoff_matrix.flatten(), prior_KK_prob.flatten())[0]
         spearman_corr_prob_prior_KK = stats.spearmanr(cutoff_matrix.flatten(), prior_KK_prob.flatten())[0]
 
+        ############################################################# TT matrix evaluation
+
+        TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
+        TT = TT.T
+
+        plt.imshow(TT)
+        plt.title("W_Q @ W_K^T")
+        plt.colorbar()
+        plt.savefig(output_path + "/TT.png")
+        plt.close()
+
+        # Diagonal
+        l = list()
+        for i in range(tau, TT.shape[0]):
+            l.append(TT[i][i-tau])
+
+        plt.scatter(range(len(l)), l, s=1)
+        plt.xlabel("Index")
+        plt.ylabel("Value")
+        plt.title("Diagonal")
+        plt.savefig(output_path + "/TT_diagonal.png")
+        plt.close()
 
         ############################################################# plot
 

@@ -217,7 +217,7 @@ if __name__ == "__main__":
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")
     trainer = pl.Trainer(
-        devices=[3],
+        devices=[0],
         accelerator="gpu",
         callbacks=[es, checkpoint_callback, lr_monitor],
         benchmark=False,

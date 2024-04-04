@@ -8,7 +8,7 @@ import numpy as np
 from torchmetrics.functional.pairwise import pairwise_cosine_similarity
 
 
-device = 'cuda:3' if torch.cuda.is_available() else 'cpu'
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 
 class Residual(nn.Module):

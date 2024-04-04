@@ -226,7 +226,7 @@ if __name__ == "__main__":
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")
     trainer = pl.Trainer(
-        devices=[3],
+        devices=[0],
         accelerator="gpu",
         callbacks=[es, checkpoint_callback, lr_monitor],
         benchmark=False,
@@ -378,7 +378,7 @@ if __name__ == "__main__":
 
         # Diagonal
         l = list()
-        for i in range(tau, TT.shape[0]):
+        for i in range(int(tau), TT.shape[0]):
             l.append(TT[i][i-tau])
 
         plt.scatter(range(len(l)), l, s=1)

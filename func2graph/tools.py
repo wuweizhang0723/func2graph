@@ -52,7 +52,7 @@ def get_avg_attention(dataloader, predict_mode_model, checkpoint_path, neuron_nu
 # This is used in data generation procedure to construct weight matrix that mimics the real mouse data with cell type information
 #
 def construct_weight_matrix_cell_type(neuron_num):
-    cell_type_order = ['EC', 'Pv', 'Sst', 'Vip']
+    cell_type_order = ['EC', 'Pvalb', 'Sst', 'Vip']
     # Let the first 76% neurons be EC, 8% neurons be Pv, 8% neurons be Sst, 8% neurons be Vip
     cell_type_ids = np.zeros(neuron_num, dtype=int)
     cell_type_ids[:int(neuron_num*0.76)] = 0
@@ -60,7 +60,7 @@ def construct_weight_matrix_cell_type(neuron_num):
     cell_type_ids[int(neuron_num*0.84):int(neuron_num*0.92)] = 2
     cell_type_ids[int(neuron_num*0.92):] = 3
     
-    cell_type_count = {'EC':int(neuron_num*0.76), 'Pv':int(neuron_num*0.08), 'Sst':int(neuron_num*0.08), 'Vip':int(neuron_num*0.08)}
+    cell_type_count = {'EC':int(neuron_num*0.76), 'Pvalb':int(neuron_num*0.08), 'Sst':int(neuron_num*0.08), 'Vip':int(neuron_num*0.08)}
     
     # construct cutoff matrix from science paper
     cutoff_matrix = np.zeros((4, 4))

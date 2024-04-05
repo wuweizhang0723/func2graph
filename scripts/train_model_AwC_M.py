@@ -56,19 +56,21 @@ if __name__ == "__main__":
 
     parser.add_argument("--loss_function", default="mse")   # "mse" or "poisson" or "gaussian"
 
-    parser.add_argument("--constraint_loss_weight", default=1)
-
     parser.add_argument("--attention_activation", default="softmax")    # "softmax" or "sigmoid" or "tanh" or "none"
 
     parser.add_argument("--scheduler", default="plateau")    # "none" or "plateau"
 
     parser.add_argument("--weight_decay", default=0)
 
-    parser.add_argument("--constraint_var", default=0.04)
-
     parser.add_argument("--to_q_layers", default=0)
     parser.add_argument("--to_k_layers", default=0)
 
+    parser.add_argument("--constraint_loss_weight", default=1)
+    parser.add_argument("--constraint_var", default=0.04)
+
+    parser.add_argument("--causal_temporal_map", default='none')   # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+    parser.add_argument("--causal_temporal_map_diff", default=1)   # 1 or 2 or 3, ...
+    parser.add_argument("--l1_on_causal_temporal_map", default=0)   # alpha penalty
 
 
     args = parser.parse_args()
@@ -110,18 +112,21 @@ if __name__ == "__main__":
 
     loss_function = args.loss_function
 
-    constraint_loss_weight = float(args.constraint_loss_weight)
-
     attention_activation = args.attention_activation
 
     scheduler = args.scheduler
 
     weight_decay = float(args.weight_decay)
 
-    constraint_var = float(args.constraint_var)
-
     to_q_layers = int(args.to_q_layers)
     to_k_layers = int(args.to_k_layers)
+
+    constraint_loss_weight = float(args.constraint_loss_weight)
+    constraint_var = float(args.constraint_var)
+
+    causal_temporal_map = args.causal_temporal_map
+    causal_temporal_map_diff = int(args.causal_temporal_map_diff)
+    l1_on_causal_temporal_map = float(args.l1_on_causal_temporal_map)
 
 
     output_path = (
@@ -158,19 +163,25 @@ if __name__ == "__main__":
         + "_"
         + loss_function
         + "_"
-        + str(constraint_loss_weight)
-        + "_"
         + attention_activation
         + "_"
         + scheduler
         + "_"
         + str(weight_decay)
         + "_"
-        + str(constraint_var)
-        + "_"
         + str(to_q_layers)
         + "_"
         + str(to_k_layers)
+        + "_"
+        + str(constraint_loss_weight)
+        + "_"
+        + str(constraint_var)
+        + "_"
+        + causal_temporal_map
+        + "_"
+        + str(causal_temporal_map_diff)
+        + "_"
+        + str(l1_on_causal_temporal_map)
     )
 
     checkpoint_path = output_path
@@ -202,11 +213,14 @@ if __name__ == "__main__":
         learning_rate=learning_rate,
         loss_function=loss_function,
         log_input=log_input,
-        constraint_loss_weight=constraint_loss_weight,
         attention_activation=attention_activation,
         scheduler=scheduler,
         weight_decay=weight_decay,
+        constraint_loss_weight=constraint_loss_weight,
         constraint_var=constraint_var,
+        causal_temporal_map=causal_temporal_map,
+        causal_temporal_map_diff=causal_temporal_map_diff,
+        l1_on_causal_temporal_map=l1_on_causal_temporal_map,
     )
 
 

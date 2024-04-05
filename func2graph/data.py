@@ -720,6 +720,8 @@ def generate_mouse_all_sessions_data(
         {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},
         {'date_exp': 'SB025/2019-10-08/', 'input_setting': 'Blank/01/'},
         {'date_exp': 'SB025/2019-10-09/', 'input_setting': 'Blank/01/'},
+        {'date_exp': 'SB025/2019-10-23/', 'input_setting': 'Blank/01/'},
+        {'date_exp': 'SB025/2019-10-24/', 'input_setting': 'Blank/01/'},
     ]
 
     all_sessions_original_UniqueID = []

@@ -481,7 +481,7 @@ if __name__ == "__main__":
         strength_matrix[2, 3] = -0.42
         strength_matrix[3, 3] = -0.33
 
-        cell_type_id2cell_type = {0:'EC', 1:'Pv', 2:'Sst', 3:'Vip'}
+        cell_type_id2cell_type = {0:'EC', 1:'Pvalb', 2:'Sst', 3:'Vip'}
 
         cell_type_level_W = tools.calculate_cell_type_level_connectivity_matrix_remove_no_connection(
             connectivity_matrix_new=W,

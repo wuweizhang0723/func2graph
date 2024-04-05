@@ -1018,7 +1018,7 @@ class Base_2(pl.LightningModule):
         target = target.reshape(pred.shape)
 
         if self.hparams.loss_function == "mse":
-            loss = F.mse_loss(pred, target, reduction="mean")
+            loss = F.mse_loss(pred, target, reduction="mean") + + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
         elif self.hparams.loss_function == "poisson":
             loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
         elif self.hparams.loss_function == "gaussian":
@@ -1111,9 +1111,12 @@ class Attention_With_Constraint(Base_2):
         predict_window_size = 1,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
-        constraint_loss_weight = 1,
         attention_activation = "none", # "softmax" or "sigmoid" or "tanh"
         weight_decay = 0,
+        causal_temporal_map = 'none',  # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+        causal_temporal_map_diff = 1,
+        l1_on_causal_temporal_map = 0,
+        constraint_loss_weight = 1,
         constraint_var = 1,
     ):
         super().__init__()
@@ -1123,8 +1126,8 @@ class Attention_With_Constraint(Base_2):
 
         # k * k matrix constraint
         # self.cell_type_level_constraint = nn.Parameter(torch.zeros((num_cell_types, num_cell_types)), requires_grad=True)
-        # self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
-        self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(0, 1))
+        self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
+        # self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(0, 1))
 
         self.predict_window_size = predict_window_size
 
@@ -1145,15 +1148,22 @@ class Attention_With_Constraint(Base_2):
         for layer in range(attention_layers):
             self.attentionlayers.append(
                 nn.Sequential(
-                    Attention(
-                        dim=dim_in,  # the last dimension of input
-                        heads=heads,
-                        dim_key=dim_key,
-                        to_q_layers=to_q_layers,
-                        to_k_layers=to_k_layers,
-                        prediction_mode=True,  ##############################
+                    # Attention(
+                    #     dim=dim_in,  # the last dimension of input
+                    #     heads=heads,
+                    #     dim_key=dim_key,
+                    #     to_q_layers=to_q_layers,
+                    #     to_k_layers=to_k_layers,
+                    #     prediction_mode=True,  ##############################
+                    #     activation = attention_activation,
+                    # ),
+                    Causal_Temporal_Map_Attention(
+                        dim=dim_in,
+                        prediction_mode=True,
                         activation = attention_activation,
-                    ),
+                        causal_temporal_map = causal_temporal_map,
+                        diff = causal_temporal_map_diff,
+                    )
                 )
             )
             self.attentionlayers.append(

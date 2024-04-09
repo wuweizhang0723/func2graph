@@ -237,7 +237,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=200,
+        max_epochs=400,
         gradient_clip_val=0.5,
     )
 
@@ -379,12 +379,6 @@ if __name__ == "__main__":
     # 4. inferred prior KK connectivity strength
     eval_prior_KK_strength = tools.experiment_KK_to_eval_KK(experiment_prior_KK_strength, cell_type_order, eval_cell_type_order)
 
-    # save the cell type level constraint as npy
-    # np.save(output_path + "/k_k.npy", cell_type_level_constraint)
-
-    # fix the order of cell types
-    # cell_type = [correct_id2cell_type.get(i) for i in range(len(correct_cell_type2id))]
-
 
     # Make the ground truth connectivity matrix ----------------------------------------------------------
     GT_strength_connectivity = np.zeros((len(eval_cell_type_order), len(eval_cell_type_order)))
@@ -467,7 +461,20 @@ if __name__ == "__main__":
     corr_prob_prior_KK = stats.pearsonr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
     spearman_corr_prob_prior_KK = stats.spearmanr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
 
-    # plot
+
+    ############################################################# TT matrix evaluation
+    TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
+    TT = TT.T
+
+    plt.imshow(TT)
+    plt.title("W_Q @ W_K^T")
+    plt.colorbar()
+    plt.savefig(output_path + "/TT.png")
+    plt.close()
+
+    np.save(output_path + "/TT.npy", TT)
+
+    ############################################################ plot
     plt.imshow(eval_KK_strength, interpolation="nearest")
     plt.colorbar()
     plt.xlabel("Pre")

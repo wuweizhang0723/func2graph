@@ -68,7 +68,7 @@ class Base_2(pl.LightningModule):
         return NotImplementedError
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=1e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)
 
         if self.hparams.scheduler == "plateau":
             lr_scheduler = {
@@ -153,16 +153,18 @@ class Base_2(pl.LightningModule):
 # simulated_network_type:
 #   1: W_ij @ F.tanh(X_t) + b
 #   2: F.tanh(W_ij @ X_t + b)
+#   3. W_ij @ X_t + b
 class Baseline_2(Base_2):
     def __init__(
         self,
         neuron_num=10,
         learning_rate=1e-4,
-        simulated_network_type=2,
+        simulated_network_type=3,
         model_random_seed=42,
-        scheduler="plateau",
-        loss_function="mse",             # mse, poisson
+        scheduler="cycle",
+        loss_function="mse",   # mse, poisson
         log_input=False,
+        weight_decay=0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -172,7 +174,6 @@ class Baseline_2(Base_2):
         self.simulated_network_type = simulated_network_type
 
         self.activation = nn.Tanh()
-        # self.activation = nn.ELU()
 
         self.W = nn.Linear(neuron_num, neuron_num, bias=False)
         self.b = nn.Parameter(torch.zeros(neuron_num))
@@ -184,4 +185,6 @@ class Baseline_2(Base_2):
         elif self.simulated_network_type == 2:
             x = self.W(x) + self.b
             x = self.activation(x)
+        elif self.simulated_network_type == 3:
+            x = self.W(x) + self.b
         return x

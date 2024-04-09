@@ -1,1 +1,1 @@
-python train_model.py --out_folder='../output/1_15_AA_toy/' --model_type=Baseline_2 --neuron_num=200 --data_type=wuwei --task_type=baseline_2 --learning_rate=4e-5 --weight_type=cell_type --scheduler=cycle --model_random_seed=12 > out.out
+python train_model.py --out_folder='../output/4_7_baseline2_sim/' --model_type=Baseline_2 --tau=1 --neuron_num=200 --data_type=wuwei --task_type=baseline_2 --learning_rate=4e-5 --weight_type=cell_type --scheduler=cycle --model_random_seed=42 > out5.out

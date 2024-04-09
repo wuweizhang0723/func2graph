@@ -613,7 +613,8 @@ class Attention_With_Constraint_sim(Base_3):
         torch.manual_seed(model_random_seed)
 
         # k * k matrix constraint
-        self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(0, 1))
+        self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
+        # self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(0, 1))
 
         if (task_type == "reconstruction") or (task_type == "mask"):
             hidden_size_1 = window_size
@@ -1196,8 +1197,11 @@ class Attention_With_Constraint(Base_2):
         #     for layer in range(h_layers_2)
         # )
 
-        self.out = nn.Linear(dim_in, predict_window_size)
+        # self.out = nn.Linear(dim_in, predict_window_size)
 
+        self.out = nn.Parameter(torch.FloatTensor(dim_in, predict_window_size).uniform_(0, 1))
+        self.out_relu = nn.ReLU()
+        # self.out_softmax = nn.Softmax(dim=0)
 
     def forward(self, x, neuron_ids): # x: batch_size * (neuron_num*time), neuron_ids: batch_size * neuron_num
         # Add positional encoding
@@ -1221,6 +1225,12 @@ class Attention_With_Constraint(Base_2):
 
         batch_neuron_num = attention_results[0].shape[-1]
         # return x[:, :, -1*self.predict_window_size:], attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
-        return self.out(x), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+        # return x @ self.out_relu(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+        # return x @ torch.abs(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+        # return x @ self.out_softmax(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+        return x @ self.out, attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+
+        # self.out.weight.data = self.out_relu(self.out.weight.data)
+        # return self.out(x), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
     
 

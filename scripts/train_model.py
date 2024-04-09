@@ -31,7 +31,7 @@ if __name__ == "__main__":
     # Data
     parser.add_argument("--neuron_num", help="the number of neurons", type=int, default=10)
     parser.add_argument("--dt", help="dt", default=0.001)
-    parser.add_argument("--tau", help="tau", default=0.3)
+    parser.add_argument("--tau", help="tau", default=1)
     parser.add_argument("--spike_neuron_num", default=2)
     parser.add_argument("--spike_input", default=5)
 
@@ -103,6 +103,7 @@ if __name__ == "__main__":
     out_folder = args.out_folder
 
     # Data
+
     neuron_num = int(args.neuron_num)
     dt = float(args.dt)
     tau = float(args.tau)
@@ -116,10 +117,7 @@ if __name__ == "__main__":
     data_random_seed = int(args.data_random_seed)
 
     weight_type = args.weight_type
-
-    # train_data_size = int(args.train_data_size)
     window_size = int(args.window_size)
-
     batch_size = int(args.batch_size)
 
     task_type = args.task_type
@@ -309,9 +307,10 @@ if __name__ == "__main__":
         single_model = baselines.Baseline_2(
             neuron_num=neuron_num,
             learning_rate=learning_rate,
-            simulated_network_type=2,
+            simulated_network_type=3,
             model_random_seed=model_random_seed,
             scheduler=scheduler,
+            weight_decay=weight_decay,
         )
     elif model_type == "Spatial_Temporal_Attention_Model":
         single_model = models.Spatial_Temporal_Attention_Model(
@@ -340,7 +339,7 @@ if __name__ == "__main__":
     lr_monitor = LearningRateMonitor()
     logger = TensorBoardLogger(log_path, name="model")
     trainer = pl.Trainer(
-        devices=[3],
+        devices=[0],
         accelerator="gpu",
         callbacks=[es, checkpoint_callback, lr_monitor],
         benchmark=False,

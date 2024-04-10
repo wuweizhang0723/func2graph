@@ -21,7 +21,7 @@ if __name__ == "__main__":
     # Parse arguments add all hyperparameters to the parser
     parser = argparse.ArgumentParser(description="Model Hyperparameters")
 
-    # "Attention_Autoencoder" or "Baseline_2" or "Attention_With_Constraint"
+    # "Attention_With_Constraint", "Attention_With_Constraint_2"
     parser.add_argument(
         "--model_type", type=str, default="Attention_With_Constraint", help="Model type"
     )
@@ -71,6 +71,8 @@ if __name__ == "__main__":
     parser.add_argument("--causal_temporal_map", default='none')   # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
     parser.add_argument("--causal_temporal_map_diff", default=1)   # 1 or 2 or 3, ...
     parser.add_argument("--l1_on_causal_temporal_map", default=0)   # alpha penalty
+
+    parser.add_argument("--dim_E", default=100)   ##### This is for Attention_With_Constraint_2 model
 
 
     args = parser.parse_args()
@@ -128,6 +130,8 @@ if __name__ == "__main__":
     causal_temporal_map_diff = int(args.causal_temporal_map_diff)
     l1_on_causal_temporal_map = float(args.l1_on_causal_temporal_map)
 
+    dim_E = int(args.dim_E)
+
 
     output_path = (
         out_folder
@@ -182,6 +186,8 @@ if __name__ == "__main__":
         + str(causal_temporal_map_diff)
         + "_"
         + str(l1_on_causal_temporal_map)
+        + "_"
+        + str(dim_E)
     )
 
     checkpoint_path = output_path
@@ -194,34 +200,53 @@ if __name__ == "__main__":
         normalization=normalization,
     )
 
-    single_model = models.Attention_With_Constraint(
-        num_unqiue_neurons=num_unqiue_neurons,
-        num_cell_types=len(cell_type_order),
-        model_random_seed=model_random_seed,
-        window_size=window_size,
-        predict_window_size=predict_window_size,
-        hidden_size_1=hidden_size_1,
-        h_layers_1=h_layers_1,
-        heads=heads,
-        attention_layers=attention_layers,
-        dim_key=dim_key,
-        to_q_layers=to_q_layers,
-        to_k_layers=to_k_layers,
-        hidden_size_2=hidden_size_2,
-        h_layers_2=h_layers_2,
-        dropout=dropout,
-        learning_rate=learning_rate,
-        loss_function=loss_function,
-        log_input=log_input,
-        attention_activation=attention_activation,
-        scheduler=scheduler,
-        weight_decay=weight_decay,
-        constraint_loss_weight=constraint_loss_weight,
-        constraint_var=constraint_var,
-        causal_temporal_map=causal_temporal_map,
-        causal_temporal_map_diff=causal_temporal_map_diff,
-        l1_on_causal_temporal_map=l1_on_causal_temporal_map,
-    )
+    if model_type == "Attention_With_Constraint":
+        single_model = models.Attention_With_Constraint(
+            num_unqiue_neurons=num_unqiue_neurons,
+            num_cell_types=len(cell_type_order),
+            model_random_seed=model_random_seed,
+            window_size=window_size,
+            predict_window_size=predict_window_size,
+            hidden_size_1=hidden_size_1,
+            h_layers_1=h_layers_1,
+            heads=heads,
+            attention_layers=attention_layers,
+            dim_key=dim_key,
+            to_q_layers=to_q_layers,
+            to_k_layers=to_k_layers,
+            hidden_size_2=hidden_size_2,
+            h_layers_2=h_layers_2,
+            dropout=dropout,
+            learning_rate=learning_rate,
+            loss_function=loss_function,
+            log_input=log_input,
+            attention_activation=attention_activation,
+            scheduler=scheduler,
+            weight_decay=weight_decay,
+            constraint_loss_weight=constraint_loss_weight,
+            constraint_var=constraint_var,
+            causal_temporal_map=causal_temporal_map,
+            causal_temporal_map_diff=causal_temporal_map_diff,
+            l1_on_causal_temporal_map=l1_on_causal_temporal_map,
+        )
+    elif model_type == "Attention_With_Constraint_2":
+        single_model = models.Attention_With_Constraint_2(
+            num_unqiue_neurons=num_unqiue_neurons,
+            num_cell_types=len(cell_type_order),
+            model_random_seed=model_random_seed,
+            window_size=window_size,
+            predict_window_size=predict_window_size,
+            learning_rate=learning_rate,
+            scheduler=scheduler,
+            loss_function=loss_function,
+            weight_decay=weight_decay,
+            constraint_loss_weight=constraint_loss_weight,
+            constraint_var=constraint_var,
+            causal_temporal_map=causal_temporal_map,
+            causal_temporal_map_diff=causal_temporal_map_diff,
+            l1_on_causal_temporal_map=l1_on_causal_temporal_map,
+            dim_E=dim_E,
+        )
 
 
     es = EarlyStopping(monitor="VAL_sum_loss", patience=20)  ###########
@@ -237,7 +262,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=400,
+        max_epochs=200,
         gradient_clip_val=0.5,
     )
 

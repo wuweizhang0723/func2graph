@@ -15,6 +15,7 @@ from func2graph.layers import (
     PositionalEncoding,
     Spatial_Temporal_Attention,
     Causal_Temporal_Map_Attention,
+    Causal_Temporal_Map_Attention_2,
 )
 
 
@@ -1019,7 +1020,7 @@ class Base_2(pl.LightningModule):
         target = target.reshape(pred.shape)
 
         if self.hparams.loss_function == "mse":
-            loss = F.mse_loss(pred, target, reduction="mean") + + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
+            loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
         elif self.hparams.loss_function == "poisson":
             loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
         elif self.hparams.loss_function == "gaussian":
@@ -1197,7 +1198,7 @@ class Attention_With_Constraint(Base_2):
         #     for layer in range(h_layers_2)
         # )
 
-        # self.out = nn.Linear(dim_in, predict_window_size)
+        # self.out = nn.Linear(dim_in, predict_window_size, bias=False)
 
         self.out = nn.Parameter(torch.FloatTensor(dim_in, predict_window_size).uniform_(0, 1))
         self.out_relu = nn.ReLU()
@@ -1228,9 +1229,82 @@ class Attention_With_Constraint(Base_2):
         # return x @ self.out_relu(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
         # return x @ torch.abs(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
         # return x @ self.out_softmax(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+
         return x @ self.out, attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
 
         # self.out.weight.data = self.out_relu(self.out.weight.data)
         # return self.out(x), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+
+        # return x @ self.out_relu(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
     
 
+
+
+
+class Attention_With_Constraint_2(Base_2):
+    def __init__(
+        self,
+        num_unqiue_neurons,
+        num_cell_types,
+        model_random_seed=42,
+        window_size=200,
+        predict_window_size = 1,
+        dropout=0.2,
+        learning_rate=1e-4,
+        scheduler="cycle",
+        loss_function = "mse", # "mse" or "poisson" or "gaussian"
+        weight_decay = 0,
+        causal_temporal_map = 'none',  # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+        causal_temporal_map_diff = 1,
+        l1_on_causal_temporal_map = 0,
+        constraint_loss_weight = 1,
+        constraint_var = 1,
+        dim_E = 128,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        torch.manual_seed(model_random_seed)
+
+        self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
+
+        dim_X = window_size - predict_window_size
+
+        # Attention
+
+        self.embedding_table = nn.Embedding(
+            num_embeddings=num_unqiue_neurons, embedding_dim=dim_E   # global unique neuron lookup table
+        )
+
+        self.layer_norm = nn.LayerNorm(dim_X)
+
+        self.attentionlayers = nn.ModuleList()
+        self.attentionlayers.append(
+            nn.Sequential(
+                Causal_Temporal_Map_Attention_2(
+                    dim_X=dim_X,
+                    dim_E=dim_E,
+                    prediction_mode=True,
+                    causal_temporal_map = causal_temporal_map,
+                    diff = causal_temporal_map_diff,
+                ),
+                nn.LayerNorm(dim_X)
+            )
+        )
+
+        self.out = nn.Linear(dim_X, predict_window_size, bias=False)
+
+        # self.out = nn.Parameter(torch.FloatTensor(dim_X, predict_window_size).uniform_(0, 1))
+
+    def forward(self, x, neuron_ids): # x: batch_size * (neuron_num*time), neuron_ids: batch_size * neuron_num
+        e = self.embedding_table(neuron_ids[0])
+        x = self.layer_norm(x)
+
+        attention_results = []
+        x, attn = self.attentionlayers[0][0](x, e)
+        attention_results.append(attn)
+
+        x = self.attentionlayers[0][1](x)
+
+        batch_neuron_num = attention_results[0].shape[-1]
+        return self.out(x), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint

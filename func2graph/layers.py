@@ -196,7 +196,6 @@ class Causal_Temporal_Map_Attention(nn.Module):
         dim,
         *,
         dropout=0.0,
-        pos_dropout=0.0,
         prediction_mode=False,
         activation='none', # 'sigmoid' or 'tanh' or 'softmax' or 'none' or 'cosine_similarity'
         causal_temporal_map='lower_triangle',  # 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
@@ -204,7 +203,7 @@ class Causal_Temporal_Map_Attention(nn.Module):
     ):
         super().__init__()
         self.activation = activation
-        self.scale = dim ** -0.5
+        # self.scale = dim ** -0.5
 
         self.causal_temporal_map = causal_temporal_map
         self.diff = diff
@@ -264,10 +263,80 @@ class Causal_Temporal_Map_Attention(nn.Module):
             return out, attn0
         else:
             return out
-
-
-
         
+
+# This attention is built on top of previous Causal_Temporal_Map_Attention
+# to make E concat to X, instead of addition
+# 
+class Causal_Temporal_Map_Attention_2(nn.Module):
+    def __init__(
+        self,
+        dim_X,
+        dim_E,
+        *,
+        dropout=0.0,
+        prediction_mode=False,
+        causal_temporal_map='lower_triangle',  # 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+        diff=20,
+    ):
+        super().__init__()
+
+        self.causal_temporal_map = causal_temporal_map
+        self.diff = diff
+
+        self.W_Q_W_KT = nn.Linear(dim_X, dim_X, bias=False)
+        self.Wx_Q_We_KT = nn.Linear(dim_X, dim_E, bias=False)
+        self.We_Q_Wx_KT = nn.Linear(dim_E, dim_X, bias=False)
+        self.We_Q_We_KT = nn.Linear(dim_E, dim_E, bias=False)
+
+        # dropouts
+
+        self.attn_dropout = nn.Dropout(dropout)
+
+        # prediction mode
+
+        self.prediction_mode = prediction_mode
+
+        if causal_temporal_map == 'off_diagonal_1' or causal_temporal_map == 'off_diagonal':
+            self.mask = torch.zeros(dim_X, dim_X, device=device)  ################# TODO
+            for i in range(diff, dim_X):
+                j = i - diff
+                self.mask[i][j] = 1  ########
+
+    def forward(self, x, e):
+        # mask
+        # W_Q_W_KT.weight is (out_features, in_features), so mask should take transpose
+        # self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data * self.mask.T
+        # self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
+
+        if self.causal_temporal_map == 'off_diagonal_1':
+            self.W_Q_W_KT.weight.data = torch.ones(self.W_Q_W_KT.weight.data.shape[0], self.W_Q_W_KT.weight.data.shape[1], device=device) * self.mask.T
+        elif self.causal_temporal_map == 'off_diagonal':
+            self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data * self.mask.T
+        elif self.causal_temporal_map == 'lower_triangle':
+            self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
+
+        v = x.clone()  # identity mapping
+
+        attn0 = einsum("b n t, b m t -> b n m", self.W_Q_W_KT(x), x)
+        e = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
+        attn1 = einsum("b n e, b m e -> b n m", self.Wx_Q_We_KT(x), e)
+        attn2 = einsum("b n t, b m t -> b n m", self.We_Q_Wx_KT(e), x)
+        attn3 = einsum("b n e, b m e -> b n m", self.We_Q_We_KT(e), e)
+
+        attn = attn0 + attn1 + attn2 + attn3
+        attn = self.attn_dropout(attn)
+
+        out = einsum("b n m, b m t -> b n t", attn, v)
+
+        if self.prediction_mode == True:
+            return out, attn
+        else:
+            return out
+
+
+
+
 
 # spatial_temporal_1: spatial attention has no value matrix
 # spatial_temporal_2: temporal attention has no value matrix

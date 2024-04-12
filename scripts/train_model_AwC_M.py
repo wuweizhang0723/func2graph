@@ -263,7 +263,7 @@ if __name__ == "__main__":
         profiler="simple",
         logger=logger,
         max_epochs=200,
-        gradient_clip_val=0.5,
+        gradient_clip_val=0,
     )
 
     trainer.fit(single_model, train_dataloader, val_dataloader)
@@ -281,8 +281,10 @@ if __name__ == "__main__":
     predictions = []
     ground_truths = []
     attentions = []
+    attentions_3 = []
 
     all_sessions_avg_attention_NN = []
+    all_sessions_avg_attention_NN_3 = []
 
     index = 0
     num_session = len(num_batch_per_session_TRAIN)
@@ -290,16 +292,21 @@ if __name__ == "__main__":
         predictions.append([])
         ground_truths.append([])
         attentions.append([])
+        attentions_3.append([])
 
         for j in range(num_batch_per_session_TRAIN[i]):
             x_hat = train_results[index][0]
             x = train_results[index][1]
             attention = train_results[index][2]
-
+            
             predictions[i].append(x_hat)
             ground_truths[i].append(x)
             attentions[i].append(attention)
 
+            if model_type == "Attention_With_Constraint_2":
+                attention_3 = train_results[index][3]
+                attentions_3[i].append(attention_3)
+            
             index += 1
 
         predictions[i] = torch.cat(predictions[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
@@ -308,6 +315,10 @@ if __name__ == "__main__":
 
         # get average attention across samples in each session
         all_sessions_avg_attention_NN.append(np.mean(attentions[i], axis=0))   # neuron_num * neuron_num
+
+        if model_type == "Attention_With_Constraint_2":
+            attentions_3[i] = torch.cat(attentions_3[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+            all_sessions_avg_attention_NN_3.append(np.mean(attentions_3[i], axis=0))   # neuron_num * neuron_num
 
 
     print('hhhh: ', sessions_2_original_cell_type[0])
@@ -350,6 +361,18 @@ if __name__ == "__main__":
     # 2. inferred KK connectivity strength
     eval_KK_strength = tools.experiment_KK_to_eval_KK(experiment_KK_strength, cell_type_order, eval_cell_type_order)
     
+
+    if model_type == "Attention_With_Constraint_2":
+        # Attention_3
+        multisession_NN_3_list = all_sessions_avg_attention_NN_3
+        experiment_KK_3_strength = tools.multisession_NN_to_KK_1(
+            multisession_NN_3_list,
+            None,
+            cell_type_order,
+            all_sessions_new_cell_type_id,
+        )
+
+        eval_KK_3_strength = tools.experiment_KK_to_eval_KK(experiment_KK_3_strength, cell_type_order, eval_cell_type_order)
 
     # For each session's avg attention, convert from n*n to k*k attention
     # different sessions may contain slightly different cell types, so k would be different
@@ -486,6 +509,10 @@ if __name__ == "__main__":
     corr_prob_prior_KK = stats.pearsonr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
     spearman_corr_prob_prior_KK = stats.spearmanr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
 
+    if model_type == "Attention_With_Constraint_2":
+        corr_strength_KK_3 = stats.pearsonr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
+        spearman_corr_strength_KK_3 = stats.spearmanr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
+
 
     ############################################################# TT matrix evaluation
     TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
@@ -568,3 +595,16 @@ if __name__ == "__main__":
     plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
     plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
     plt.savefig(output_path + "/GT_prob.png")
+    plt.close()
+
+    if model_type == "Attention_With_Constraint_2":
+        ############## Attention KK 3
+        plt.imshow(eval_KK_3_strength, interpolation="nearest")
+        plt.colorbar()
+        plt.xlabel("Pre")
+        plt.ylabel("Post")
+        plt.title("eval_KK_3_strength, corr = " + str(corr_strength_KK_3)[:7] + ", spearman = " + str(spearman_corr_strength_KK_3)[:7])
+        plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+        plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+        plt.savefig(output_path + "/strength_3.png")
+        plt.close()

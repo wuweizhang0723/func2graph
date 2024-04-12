@@ -228,7 +228,7 @@ class Causal_Temporal_Map_Attention(nn.Module):
                 j = i - diff
                 self.mask[i][j] = 1  ########
 
-    def forward(self, x):
+    def forward(self, x_e):
 
         # mask lower triangular part of W_Q_W_KT, mask should take transpose
         # self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
@@ -245,13 +245,13 @@ class Causal_Temporal_Map_Attention(nn.Module):
             self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
         
 
-        v = x.clone()  # identity mapping
+        v = x_e.clone()  # identity mapping
 
-        x_ = self.W_Q_W_KT(x)  # (b, n, t)
+        x_e_ = self.W_Q_W_KT(x_e)  # (b, n, t)
 
         # x_ = x_ * self.scale
 
-        logits = einsum("b n t, b m t -> b n m", x_, x)
+        logits = einsum("b n t, b m t -> b n m", x_e_, x_e)
         attn0 = logits
 
         attn = self.attn_dropout(attn0)
@@ -284,6 +284,7 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
         self.causal_temporal_map = causal_temporal_map
         self.diff = diff
 
+        self.relu = nn.ReLU()
         self.W_Q_W_KT = nn.Linear(dim_X, dim_X, bias=False)
         self.Wx_Q_We_KT = nn.Linear(dim_X, dim_E, bias=False)
         self.We_Q_Wx_KT = nn.Linear(dim_E, dim_X, bias=False)
@@ -318,6 +319,7 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
 
         v = x.clone()  # identity mapping
 
+        self.W_Q_W_KT.weight.data = self.relu(self.W_Q_W_KT.weight.data)
         attn0 = einsum("b n t, b m t -> b n m", self.W_Q_W_KT(x), x)
         e = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
         attn1 = einsum("b n e, b m e -> b n m", self.Wx_Q_We_KT(x), e)
@@ -330,7 +332,7 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
         out = einsum("b n m, b m t -> b n t", attn, v)
 
         if self.prediction_mode == True:
-            return out, attn
+            return out, attn, attn3
         else:
             return out
 

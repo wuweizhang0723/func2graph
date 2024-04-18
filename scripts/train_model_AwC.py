@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
     neuron_num = int(args.neuron_num)
     dt = float(args.dt)
-    tau = float(args.tau)
+    tau = int(args.tau)
     spike_neuron_num = int(args.spike_neuron_num)
     spike_input = int(args.spike_input)
 
@@ -238,14 +238,14 @@ if __name__ == "__main__":
     trainer.fit(single_model, trainloader, validloader)
 
 
-    # evaluate the model -----------------------------------------------------
+    ############################# evaluate the model -----------------------------------------------------
 
     model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
 
     train_results = trainer.predict(single_model, dataloaders=[trainloader], ckpt_path=model_checkpoint_path)
 
-    predictions = []
-    ground_truths = []
+    # predictions = []
+    # ground_truths = []
     attentions = []
     for i in range(len(train_results)):
         x_hat = train_results[i][0]    # batch_size * (neuron_num*time)
@@ -255,16 +255,41 @@ if __name__ == "__main__":
         
         attention = attention.view(-1, neuron_num, neuron_num)
 
-        predictions.append(x_hat)
-        ground_truths.append(x)
+        # predictions.append(x_hat)
+        # ground_truths.append(x)
         attentions.append(attention)
 
-    predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
-    ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
+    # predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
+    # ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
     attentions = torch.cat(attentions, dim=0).cpu().numpy()    # N * neuron_num * neuron_num
 
     avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
     W = avg_attention
+
+    #################################################### Validation result
+
+    val_results = trainer.predict(single_model, dataloaders=[validloader], ckpt_path=model_checkpoint_path)
+
+    predictions = []
+    ground_truths = []
+
+    for i in range(len(val_results)):
+        x_hat = train_results[i][0]    # batch_size * (neuron_num*time)
+        x = train_results[i][1]
+
+        predictions.append(x_hat)
+        ground_truths.append(x)
+
+    predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
+    ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
+    pred_corr = stats.pearsonr(predictions.flatten(), ground_truths.flatten())[0]
+
+    plt.scatter(predictions.flatten(), ground_truths.flatten(), s=1)
+    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7])
+    plt.xlabel("Predictions")
+    plt.ylabel("Ground Truths")
+    plt.savefig(output_path + "/pred.png")
+    plt.close()
 
 
     if data_type == "wuwei" or data_type == "ziyu":
@@ -386,6 +411,23 @@ if __name__ == "__main__":
         plt.ylabel("Value")
         plt.title("Diagonal")
         plt.savefig(output_path + "/TT_diagonal.png")
+        plt.close()
+
+        ############################################################# attn3 term = (E @ TT @ E^T)
+
+        idx = torch.arange(neuron_num).to(trained_model.device)
+        E = trained_model.embedding_table(idx)
+        E = E.cpu().detach().numpy()
+        attn3 = E @ TT @ E.T
+
+        estimation_attn3_corr = np.corrcoef(attn3.flatten(), weight_matrix.flatten())[0, 1]
+
+        plt.imshow(attn3)
+        plt.colorbar()
+        plt.xlabel("Pre")
+        plt.ylabel("Post")
+        plt.title("E@TT@ E^T" + " (corr: " + str(estimation_attn3_corr)[:6] + ")")
+        plt.savefig(output_path + "/attn3.png")
         plt.close()
 
         ############################################################# plot

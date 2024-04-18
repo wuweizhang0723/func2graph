@@ -205,6 +205,8 @@ class Causal_Temporal_Map_Attention(nn.Module):
         self.activation = activation
         # self.scale = dim ** -0.5
 
+        self.layer_norm = nn.LayerNorm(dim)
+
         self.causal_temporal_map = causal_temporal_map
         self.diff = diff
 
@@ -228,7 +230,7 @@ class Causal_Temporal_Map_Attention(nn.Module):
                 j = i - diff
                 self.mask[i][j] = 1  ########
 
-    def forward(self, x_e):
+    def forward(self, x, e):
 
         # mask lower triangular part of W_Q_W_KT, mask should take transpose
         # self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
@@ -244,8 +246,11 @@ class Causal_Temporal_Map_Attention(nn.Module):
         elif self.causal_temporal_map == 'lower_triangle':
             self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
         
+        x_e = x + e
+        x_e = self.layer_norm(x_e)
 
         v = x_e.clone()  # identity mapping
+        # v = x.clone()  # identity mapping ###############################
 
         x_e_ = self.W_Q_W_KT(x_e)  # (b, n, t)
 
@@ -258,9 +263,12 @@ class Causal_Temporal_Map_Attention(nn.Module):
 
         out = einsum("b n m, b m t -> b n t", attn, v)
 
+        e_repeat = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
+        attn3 = einsum("b n e, b m e -> b n m", self.W_Q_W_KT(e_repeat), e_repeat)
+
         if self.prediction_mode == True:
             print('1')
-            return out, attn0
+            return out, attn0, attn3
         else:
             return out
         
@@ -284,7 +292,7 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
         self.causal_temporal_map = causal_temporal_map
         self.diff = diff
 
-        self.relu = nn.ReLU()
+        # self.relu = nn.ReLU()
         self.W_Q_W_KT = nn.Linear(dim_X, dim_X, bias=False)
         self.Wx_Q_We_KT = nn.Linear(dim_X, dim_E, bias=False)
         self.We_Q_Wx_KT = nn.Linear(dim_E, dim_X, bias=False)
@@ -317,9 +325,7 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
         elif self.causal_temporal_map == 'lower_triangle':
             self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
 
-        v = x.clone()  # identity mapping
-
-        self.W_Q_W_KT.weight.data = self.relu(self.W_Q_W_KT.weight.data)
+        # self.W_Q_W_KT.weight.data = self.relu(self.W_Q_W_KT.weight.data)   # TT relu
         attn0 = einsum("b n t, b m t -> b n m", self.W_Q_W_KT(x), x)
         e = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
         attn1 = einsum("b n e, b m e -> b n m", self.Wx_Q_We_KT(x), e)
@@ -328,6 +334,10 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
 
         attn = attn0 + attn1 + attn2 + attn3
         attn = self.attn_dropout(attn)
+
+        v = x.clone()  # identity mapping
+        # concat e to v, at the last dimension
+        # v = torch.cat((x, e), dim=-1)
 
         out = einsum("b n m, b m t -> b n t", attn, v)
 

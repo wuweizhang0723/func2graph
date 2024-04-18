@@ -320,8 +320,8 @@ def generate_simulation_data(
         val_dataset = TensorDataset(val_x, val_y, val_mask_indices_i, val_mask_indices_j)
 
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     if spatial_partial_measurement == neuron_num:
         if data_type == "ziyu":
@@ -564,13 +564,13 @@ def c_elegans_data_simulator():
 # Mouse Data --------------------------------------------------------------------------
 
 
-def mouse_data_simulator(directory, date_exp, input_setting, session_normalization):
-    # load data
-    activity,frame_times,UniqueID,neuron_ttypes = load_mouse_data_session(directory, date_exp, input_setting, session_normalization)
+# def mouse_data_simulator(directory, date_exp, input_setting, session_normalization):
+#     # load data
+#     activity,frame_times,UniqueID,neuron_ttypes = load_mouse_data_session(directory, date_exp, input_setting, session_normalization)
 
-    # load ground truth weight matrix
+#     # load ground truth weight matrix
 
-    return activity, neuron_ttypes, np.zeros((activity.shape[0], activity.shape[0]))   ######### TODO
+#     return activity, neuron_ttypes, np.zeros((activity.shape[0], activity.shape[0]))   ######### TODO
 
 
 
@@ -626,6 +626,10 @@ def load_mouse_data_session(directory, date_exp, input_setting, normalization):
         activity_std = np.std(frame_activity)
 
         activity_norm = (frame_activity - activity_mean)/activity_std
+    elif normalization == 'destd_session':
+        activity_std = np.std(frame_activity)
+
+        activity_norm = (frame_activity) / activity_std
     elif normalization == 'neuron':
         activity_mean = np.mean(frame_activity, axis = 0)
         activity_std = np.std(frame_activity, axis = 0)
@@ -706,6 +710,8 @@ class Mouse_All_Sessions_Dataset(TensorDataset):
 
 
 def generate_mouse_all_sessions_data(
+    input_mouse: str,    # e.g. SB025
+    input_sessions: list,    # e.g. [2019-10-07, 2019-10-04]
     window_size = 200, 
     batch_size = 32,
     num_workers: int = 6, 
@@ -715,14 +721,29 @@ def generate_mouse_all_sessions_data(
 ):
     
     directory = '../data/Mouse/Bugeon/'
-    input_sessions_file_path = [
-        {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-08/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-09/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-23/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-24/', 'input_setting': 'Blank/01/'},
-    ]
+    input_sessions_file_path = []
+    for i in range(len(input_sessions)):
+        input_sessions_file_path.append({'date_exp': input_mouse + '/' + input_sessions[i] + '/', 'input_setting': 'Blank/01/'})
+
+    # input_sessions_file_path = [
+        # {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-08/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-09/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-23/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-24/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB026/2019-10-11/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB026/2019-10-14/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB026/2019-10-16/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB028/2019-11-06/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB028/2019-11-07/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB028/2019-11-08/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB028/2019-11-12/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB028/2019-11-13/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB030/2020-01-08/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB030/2020-01-10/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB030/2020-01-28/', 'input_setting': 'Blank/01/'},
+    # ]
 
     all_sessions_original_UniqueID = []
     all_sessions_original_cell_type = []
@@ -801,7 +822,132 @@ def generate_mouse_all_sessions_data(
     num_batch_per_session_TRAIN = train_dataset.num_batch_per_session
     num_batch_per_session_VAL = val_dataset.num_batch_per_session
 
-    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=shuffle, num_workers=num_workers)    # this is not real batch_size
-    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=shuffle, num_workers=num_workers)        # this is not real batch_size
+    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=num_workers)    # 1 is not real batch_size
+    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=num_workers)        # 1 is not real batch_size
 
     return train_dataloader, val_dataloader, num_unqiue_neurons, cell_type_order, all_sessions_new_cell_type_id, num_batch_per_session_TRAIN, num_batch_per_session_VAL, sessions_2_original_cell_type, neuron_id_2_cell_type_id
+
+
+
+
+
+
+########################################################################################
+########################################################################################
+# Below is the data generation for GLM.
+# It should return a list of dataloaders for each session.
+#
+# GLM is trained on ONE session at a time. x_{t+1} = \sum A_k x_{t-k}
+# The input is previous K time steps and the output is the current ONE time step.
+#
+# - input data: batch_size x neuron_num x 1
+# - output data: batch_size x neuron_num x 1
+# - Each unique neuron is assigned a unique ID across ALL sessions (batch_size x neuron_num)
+# - Each neuron has cell type id (batch_size x neuron_num)
+# - cell_type2id is a dictionary from cell type to cell type id
+########################################################################################
+########################################################################################
+
+def generate_mouse_all_sessions_data_for_GLM(
+    k,     # the number of tau(s) to consider, each tau corresponds to one A in GLM
+    batch_size = 32,
+    num_workers: int = 6, 
+    shuffle: bool = False,
+    normalization = 'session',
+    split_ratio = 0.8,
+):
+    
+    directory = '../data/Mouse/Bugeon/'
+    input_sessions_file_path = [
+        {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
+        {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},
+        {'date_exp': 'SB025/2019-10-08/', 'input_setting': 'Blank/01/'},
+        {'date_exp': 'SB025/2019-10-09/', 'input_setting': 'Blank/01/'},
+        {'date_exp': 'SB025/2019-10-23/', 'input_setting': 'Blank/01/'},
+        {'date_exp': 'SB025/2019-10-24/', 'input_setting': 'Blank/01/'},
+    ]
+
+    all_sessions_original_UniqueID = []
+    all_sessions_original_cell_type = []
+    all_sessions_acitvity_TRAIN = []   # first 80% of the time
+    all_sessions_acitvity_VAL = []
+    num_neurons_per_session = []
+
+    sessions_2_original_cell_type = []
+
+    for i in range(len(input_sessions_file_path)):
+        date_exp = input_sessions_file_path[i]['date_exp']
+        input_setting = input_sessions_file_path[i]['input_setting']
+
+        activity, frame_times, UniqueID, neuron_ttypes = load_mouse_data_session(
+            directory, date_exp, input_setting, normalization
+        )
+
+        all_sessions_original_UniqueID.append(UniqueID)
+        all_sessions_acitvity_TRAIN.append(activity[:, :int(activity.shape[1]*split_ratio)])
+        all_sessions_acitvity_VAL.append(activity[:, int(activity.shape[1]*split_ratio):])
+        num_neurons_per_session.append(activity.shape[0])
+
+        # Get the first level of cell types
+        neuron_types_result = []
+        for j in range(len(neuron_ttypes)):
+            # split by "-"
+            neuron_types_result.append(neuron_ttypes[j].split("-")[0])
+
+        sessions_2_original_cell_type.append(neuron_types_result)
+        all_sessions_original_cell_type.append(neuron_types_result)
+
+    all_sessions_original_UniqueID = np.concatenate(all_sessions_original_UniqueID)     # flatten to 1d
+    all_sessions_original_cell_type = np.concatenate(all_sessions_original_cell_type)   # flatten to 1d
+
+
+    ##############################################
+    # Construct new UniqueID and cell type id
+    ##############################################
+    # all _essions_new_UniqueID: num_sessions x num_neurons_per_session
+    # num_unqiue_neurons: a number, total number of unique neurons
+    all_sessions_new_UniqueID, num_unqiue_neurons = tools.assign_unique_neuron_ids(all_sessions_original_UniqueID, num_neurons_per_session)
+    # all_sessions_new_cell_type_id: num_sessions x num_neurons_per_session
+    # cell_type_order: a list of cell types, the index corresponds to cell type id
+    all_sessions_new_cell_type_id, cell_type_order = tools.assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per_session)
+
+    neuron_id_2_cell_type_id = np.zeros((num_unqiue_neurons,))
+    for i in range(len(all_sessions_new_UniqueID)):
+        neuron_id_2_cell_type_id[all_sessions_new_UniqueID[i].astype(int)] = all_sessions_new_cell_type_id[i]
+
+
+    ##############################################
+    # Construct windows
+    ##############################################
+
+    # For TRAIN
+    # all_sessions_activity_windows: a list of sessions activity windows, each session is a 3D array of shape num_windows x num_neurons x window_size
+    all_sessions_activity_windows_TRAIN, all_sessions_new_UniqueID_windows_TRAIN, all_sessions_new_cell_type_id_window_TRAIN = tools.sliding_windows(
+        all_sessions_acitvity_TRAIN, all_sessions_new_UniqueID, all_sessions_new_cell_type_id, window_size=(k+1)   ########## TODO: check window size!!!!!!!!!!!!!
+    )
+    # For VAL
+    all_sessions_activity_windows_VAL, all_sessions_new_UniqueID_windows_VAL, all_sessions_new_cell_type_id_window_VAL = tools.sliding_windows(
+        all_sessions_acitvity_VAL, all_sessions_new_UniqueID, all_sessions_new_cell_type_id, window_size=(k+1)
+    )
+
+    ##############################################
+    # Construct dataloaders
+    ##############################################
+
+    train_dataloader_list = []
+    val_dataloader_list = []
+
+    for i in range(len(input_sessions_file_path)):
+        train_data = torch.Tensor(all_sessions_activity_windows_TRAIN[i]).float()
+        val_data = torch.Tensor(all_sessions_activity_windows_VAL[i]).float()
+
+        train_dataset = TensorDataset(train_data)
+        val_dataset = TensorDataset(val_data)
+
+        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+
+        train_dataloader_list.append(train_dataloader)
+        val_dataloader_list.append(val_dataloader)
+
+    return train_dataloader_list, val_dataloader_list, num_unqiue_neurons, cell_type_order, all_sessions_new_cell_type_id, sessions_2_original_cell_type, neuron_id_2_cell_type_id

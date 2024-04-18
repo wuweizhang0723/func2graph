@@ -29,6 +29,9 @@ if __name__ == "__main__":
 
     # Data
 
+    parser.add_argument("--input_mouse")
+    parser.add_argument("--input_sessions")
+
     parser.add_argument("--window_size", default=200)
     parser.add_argument("--predict_window_size", default=1)
 
@@ -83,6 +86,8 @@ if __name__ == "__main__":
 
     # Data
 
+    input_mouse = args.input_mouse
+    input_sessions = [str(session) for session in args.input_sessions.split('_')]
     window_size = int(args.window_size)
     predict_window_size = int(args.predict_window_size)
 
@@ -136,6 +141,10 @@ if __name__ == "__main__":
     output_path = (
         out_folder
         + model_type
+        + "_"
+        + input_mouse
+        + "_"
+        + args.input_sessions
         + "_"
         + str(batch_size)
         + "_"
@@ -195,6 +204,8 @@ if __name__ == "__main__":
 
     
     train_dataloader, val_dataloader, num_unqiue_neurons, cell_type_order, all_sessions_new_cell_type_id, num_batch_per_session_TRAIN, num_batch_per_session_VAL, sessions_2_original_cell_type, neuron_id_2_cell_type_id = data.generate_mouse_all_sessions_data(
+        input_mouse=input_mouse,
+        input_sessions=input_sessions,
         window_size=window_size,
         batch_size=batch_size,
         normalization=normalization,
@@ -262,7 +273,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=200,
+        max_epochs=100,
         gradient_clip_val=0,
     )
 
@@ -278,8 +289,8 @@ if __name__ == "__main__":
     train_results = trainer.predict(single_model, dataloaders=[train_dataloader], ckpt_path=model_checkpoint_path)
 
     # neuron_embeddings = train_results[0][3]
-    predictions = []
-    ground_truths = []
+    # predictions = []
+    # ground_truths = []
     attentions = []
     attentions_3 = []
 
@@ -289,8 +300,8 @@ if __name__ == "__main__":
     index = 0
     num_session = len(num_batch_per_session_TRAIN)
     for i in range(num_session):
-        predictions.append([])
-        ground_truths.append([])
+        # predictions.append([])
+        # ground_truths.append([])
         attentions.append([])
         attentions_3.append([])
 
@@ -299,33 +310,73 @@ if __name__ == "__main__":
             x = train_results[index][1]
             attention = train_results[index][2]
             
-            predictions[i].append(x_hat)
-            ground_truths[i].append(x)
+            # predictions[i].append(x_hat)
+            # ground_truths[i].append(x)
             attentions[i].append(attention)
 
-            if model_type == "Attention_With_Constraint_2":
-                attention_3 = train_results[index][3]
-                attentions_3[i].append(attention_3)
+            attention_3 = train_results[index][3]
+            attentions_3[i].append(attention_3)
             
             index += 1
 
-        predictions[i] = torch.cat(predictions[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
-        ground_truths[i] = torch.cat(ground_truths[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
+        # predictions[i] = torch.cat(predictions[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
+        # ground_truths[i] = torch.cat(ground_truths[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
         attentions[i] = torch.cat(attentions[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
 
         # get average attention across samples in each session
         all_sessions_avg_attention_NN.append(np.mean(attentions[i], axis=0))   # neuron_num * neuron_num
 
-        if model_type == "Attention_With_Constraint_2":
-            attentions_3[i] = torch.cat(attentions_3[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
-            all_sessions_avg_attention_NN_3.append(np.mean(attentions_3[i], axis=0))   # neuron_num * neuron_num
+        attentions_3[i] = torch.cat(attentions_3[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+        all_sessions_avg_attention_NN_3.append(np.mean(attentions_3[i], axis=0))   # neuron_num * neuron_num
 
 
     print('hhhh: ', sessions_2_original_cell_type[0])
     print(len(sessions_2_original_cell_type[0]))
 
 
-    # Perform min-max normalization on each abs(NN) in multisession_NN_list
+    ################################### validation result
+
+    val_results = trainer.predict(single_model, dataloaders=[val_dataloader], ckpt_path=model_checkpoint_path)
+
+    predictions = []
+    ground_truths = []
+
+    index = 0
+    num_session = len(num_batch_per_session_VAL)
+    for i in range(num_session):
+        predictions.append([])
+        ground_truths.append([])
+
+        for j in range(num_batch_per_session_VAL[i]):
+            x_hat = val_results[index][0]
+            x = val_results[index][1]
+            
+            predictions[i].append(x_hat)
+            ground_truths[i].append(x)
+            index += 1
+
+        predictions[i] = torch.cat(predictions[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
+        ground_truths[i] = torch.cat(ground_truths[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
+
+    flatten_predictions = [predictions[0].flatten()]
+    flatten_ground_truths = [ground_truths[0].flatten()]
+    for i in range(1, num_session):
+        flatten_predictions.append(predictions[i].flatten())
+        flatten_ground_truths.append(ground_truths[i].flatten())
+
+    flatten_predictions = np.concatenate(flatten_predictions)
+    flatten_ground_truths = np.concatenate(flatten_ground_truths)
+    pred_corr = stats.pearsonr(flatten_predictions, flatten_ground_truths)[0]
+
+    plt.scatter(flatten_predictions, flatten_ground_truths, s=1)
+    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7])
+    plt.xlabel("Predictions")
+    plt.ylabel("Ground Truths")
+    plt.savefig(output_path + "/pred.png")
+    plt.close()
+
+
+    ################################### Perform min-max normalization on each abs(NN) in multisession_NN_list
 
     multisession_NN_list = all_sessions_avg_attention_NN
 
@@ -362,17 +413,16 @@ if __name__ == "__main__":
     eval_KK_strength = tools.experiment_KK_to_eval_KK(experiment_KK_strength, cell_type_order, eval_cell_type_order)
     
 
-    if model_type == "Attention_With_Constraint_2":
-        # Attention_3
-        multisession_NN_3_list = all_sessions_avg_attention_NN_3
-        experiment_KK_3_strength = tools.multisession_NN_to_KK_1(
-            multisession_NN_3_list,
-            None,
-            cell_type_order,
-            all_sessions_new_cell_type_id,
-        )
+    # Attention_3
+    multisession_NN_3_list = all_sessions_avg_attention_NN_3
+    experiment_KK_3_strength = tools.multisession_NN_to_KK_1(
+        multisession_NN_3_list,
+        None,
+        cell_type_order,
+        all_sessions_new_cell_type_id,
+    )
 
-        eval_KK_3_strength = tools.experiment_KK_to_eval_KK(experiment_KK_3_strength, cell_type_order, eval_cell_type_order)
+    eval_KK_3_strength = tools.experiment_KK_to_eval_KK(experiment_KK_3_strength, cell_type_order, eval_cell_type_order)
 
     # For each session's avg attention, convert from n*n to k*k attention
     # different sessions may contain slightly different cell types, so k would be different
@@ -509,9 +559,9 @@ if __name__ == "__main__":
     corr_prob_prior_KK = stats.pearsonr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
     spearman_corr_prob_prior_KK = stats.spearmanr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
 
-    if model_type == "Attention_With_Constraint_2":
-        corr_strength_KK_3 = stats.pearsonr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
-        spearman_corr_strength_KK_3 = stats.spearmanr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
+
+    corr_strength_KK_3 = stats.pearsonr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
+    spearman_corr_strength_KK_3 = stats.spearmanr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
 
 
     ############################################################# TT matrix evaluation
@@ -597,14 +647,14 @@ if __name__ == "__main__":
     plt.savefig(output_path + "/GT_prob.png")
     plt.close()
 
-    if model_type == "Attention_With_Constraint_2":
-        ############## Attention KK 3
-        plt.imshow(eval_KK_3_strength, interpolation="nearest")
-        plt.colorbar()
-        plt.xlabel("Pre")
-        plt.ylabel("Post")
-        plt.title("eval_KK_3_strength, corr = " + str(corr_strength_KK_3)[:7] + ", spearman = " + str(spearman_corr_strength_KK_3)[:7])
-        plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
-        plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
-        plt.savefig(output_path + "/strength_3.png")
-        plt.close()
+
+    ############## Attention KK 3
+    plt.imshow(eval_KK_3_strength, interpolation="nearest")
+    plt.colorbar()
+    plt.xlabel("Pre")
+    plt.ylabel("Post")
+    plt.title("eval_KK_3_strength, corr = " + str(corr_strength_KK_3)[:7] + ", spearman = " + str(spearman_corr_strength_KK_3)[:7])
+    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    plt.savefig(output_path + "/strength_3.png")
+    plt.close()

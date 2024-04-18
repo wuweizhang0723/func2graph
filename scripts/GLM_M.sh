@@ -1,0 +1,1 @@
+python train_model_GLM_M.py --out_folder='../output/4_15_GLM_M_bias2_RandS/' --model_type=GLM_M --k=1 --batch_size=32 --normalization=session --model_random_seed=42 --learning_rate=1e-4 --scheduler=plateau --weight_decay=0 > out4.out

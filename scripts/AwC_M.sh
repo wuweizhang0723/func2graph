@@ -6,4 +6,11 @@ python train_model_AwC_M.py --out_folder='../output/4_7_AwC_M_softmaxW_out/' --m
 
 
 
-python train_model_AwC_M.py --out_folder='../output/4_14_AwC_M_noOut_l1OnTT/' --model_type=Attention_With_Constraint --window_size=200 --predict_window_size=1 --normalization=session --model_random_seed=82 --dim_key=200 --to_q_layers=0 --to_k_layers=0 --hidden_size_2=128 --h_layers_2=0 --learning_rate=1e-3 --attention_activation=none --scheduler=plateau --constraint_loss_weight=1e-5 --constraint_var=1 --causal_temporal_map=none --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=1e-5 > out6.out
+python train_model_AwC_M.py --out_folder='../output/4_16_AwC_M_noOut_Animal4/' --model_type=Attention_With_Constraint --window_size=200 --predict_window_size=1 --normalization=session --model_random_seed=62 --dim_key=200 --to_q_layers=0 --to_k_layers=0 --hidden_size_2=128 --h_layers_2=0 --learning_rate=1e-3 --attention_activation=none --scheduler=plateau --constraint_loss_weight=1e-5 --constraint_var=1 --causal_temporal_map=lower_triangle --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=5e-5 > out.out
+
+
+# add param to change input sessions, make constraint_var learnable
+python train_model_AwC_M.py --out_folder='../output/4_17_AwC_M_scaling/' --model_type=Attention_With_Constraint --input_sessions=SB025/2019-10-04/_SB025/2019-10-07/ --window_size=200 --predict_window_size=1 --normalization=session --model_random_seed=42 --dim_key=200 --to_q_layers=0 --to_k_layers=0 --hidden_size_2=128 --h_layers_2=0 --learning_rate=1e-3 --attention_activation=none --scheduler=plateau --constraint_loss_weight=1e-5 --constraint_var=1 --causal_temporal_map=none --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=0 > out2.out
+
+
+python train_model_AwC_M.py --out_folder='../output/4_18_AwC_M_scaling_Animal3/' --model_type=Attention_With_Constraint --input_mouse=SB028 --input_sessions=2019-11-06_2019-11-07_2019-11-08_2019-11-12_2019-11-13 --window_size=200 --predict_window_size=1 --normalization=session --model_random_seed=42 --dim_key=200 --to_q_layers=0 --to_k_layers=0 --hidden_size_2=128 --h_layers_2=0 --learning_rate=1e-3 --attention_activation=none --scheduler=plateau --constraint_loss_weight=1e-5 --constraint_var=1 --causal_temporal_map=none --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=0 > out2.out

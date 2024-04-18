@@ -659,31 +659,38 @@ class Attention_With_Constraint_sim(Base_3):
                 )
             )
 
-        self.out = nn.Linear(dim_in, predict_window_size)     ########################
+        # self.out = nn.Linear(dim_in, predict_window_size, bias=False)     ########################
 
     def forward(self, x): # x: batch_size * (neuron_num*time)
-        if self.pos_enc_type == "sin_cos":
-            # Add positional encoding
-            x = self.position_enc(x)
-            x = self.layer_norm(x)
-        elif self.pos_enc_type == "lookup_table":
-            # Add positional encoding
-            idx = torch.arange(x.shape[1]).to(x.device)
-            neuron_embedding = self.embedding_table(idx)
-            x = x + neuron_embedding
-            
-            x = self.layer_norm(x)   ########################
+        # if self.pos_enc_type == "sin_cos":
+        #     # Add positional encoding
+        #     x = self.position_enc(x)
+        #     x = self.layer_norm(x)
+        # elif self.pos_enc_type == "lookup_table":
+
+        # Add positional encoding
+        idx = torch.arange(x.shape[1]).to(x.device)
+        neuron_embedding = self.embedding_table(idx)
+        # x = x + neuron_embedding
+        
+        # x = self.layer_norm(x)   ########################
 
         attention_results = []
-        for layer in self.attentionlayers:
-            x = layer(x)
-            if type(x) is tuple:
-                print('3')
-                x, attn = x
-                attention_results.append(attn)
+        x, attn, attn3 = self.attentionlayers[0][0](x, neuron_embedding)
+        attention_results.append(attn)
+
+        x = self.attentionlayers[1][0](x)
+
+        # attention_results = []
+        # for layer in self.attentionlayers:
+        #     x = layer(x)
+        #     if type(x) is tuple:
+        #         print('3')
+        #         x, attn = x
+        #         attention_results.append(attn)
             
-        # return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
-        return self.out(x), attention_results[0], self.cell_type_level_constraint
+        return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
+        # return self.out(x), attention_results[0], self.cell_type_level_constraint
 
 
 
@@ -989,13 +996,11 @@ class Base_2(pl.LightningModule):
 
         # Make the last time step as the target
         target = x[:, :, -1*self.hparams.predict_window_size:].clone()
-        if self.hparams.model_type == "Attention_With_Constraint":
-            pred, neuron_level_attention, cell_type_level_constraint = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
-        elif self.hparams.model_type == "Attention_With_Constraint_2":
-            pred, neuron_level_attention, cell_type_level_constraint, neuron_level_attention3 = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
+        pred, neuron_level_attention, cell_type_level_constraint, neuron_level_attention3 = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
 
         cell_type_ids_np = cell_type_ids[0].clone().detach().cpu().numpy()
         expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
+        expanded_cell_type_level_var = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
         # loop over unique cell types
 
         for i in list(np.unique(cell_type_ids_np)):
@@ -1005,18 +1010,22 @@ class Base_2(pl.LightningModule):
                 # find the neurons with the same cell type
                 neuron_ids_with_same_cell_type_j = np.where(cell_type_ids_np == j)[0]
                 # Assign the same constraint to the neurons with the same cell type
-                expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_i, neuron_ids_with_same_cell_type_j.reshape(-1,1)] = cell_type_level_constraint[i, j]
-                expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_j, neuron_ids_with_same_cell_type_i.reshape(-1,1)] = cell_type_level_constraint[j, i]
+                expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_i, neuron_ids_with_same_cell_type_j.reshape(-1,1)] = cell_type_level_constraint[i, j] * 1   # to create computational graph
+                expanded_cell_type_level_constraint[neuron_ids_with_same_cell_type_j, neuron_ids_with_same_cell_type_i.reshape(-1,1)] = cell_type_level_constraint[j, i] * 1
+
+                expanded_cell_type_level_var[neuron_ids_with_same_cell_type_i, neuron_ids_with_same_cell_type_j.reshape(-1,1)] = self.cell_type_level_var[i, j] ** 2   # to create computational graph
+                expanded_cell_type_level_var[neuron_ids_with_same_cell_type_j, neuron_ids_with_same_cell_type_i.reshape(-1,1)] = self.cell_type_level_var[j, i] ** 2
 
     
         # print('num zeros in expanded_cell_type_level_constraint: ', torch.sum(expanded_cell_type_level_constraint == 0))
     
         # Expand the first dimension of expanded_cell_type_level_constraint to batch_size
         expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
+        expanded_cell_type_level_var = einops.repeat(expanded_cell_type_level_var, 'n d -> b n d', b=neuron_level_attention.shape[0])
 
         # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
-        var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var
-        constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
+        # var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var
+        constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=expanded_cell_type_level_var)
         
         # make pred and target have the same shape
         target = target.reshape(pred.shape)
@@ -1043,10 +1052,7 @@ class Base_2(pl.LightningModule):
 
         # Make the last time step as the target
         target = x[:, :, -1*self.hparams.predict_window_size:].clone()
-        if self.hparams.model_type == "Attention_With_Constraint":
-            pred, neuron_level_attention, cell_type_level_constraint = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
-        elif self.hparams.model_type == "Attention_With_Constraint_2":
-            pred, neuron_level_attention, cell_type_level_constraint, neuron_level_attention3 = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
+        pred, neuron_level_attention, cell_type_level_constraint, neuron_level_attention3 = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
 
         cell_type_ids_np = cell_type_ids[0].clone().detach().cpu().numpy()
         expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
@@ -1089,12 +1095,9 @@ class Base_2(pl.LightningModule):
 
         # Make the last time step as the target
         target = x[:, :, -1*self.hparams.predict_window_size:].clone()
-        if self.hparams.model_type == "Attention_With_Constraint":
-            pred, neuron_level_attention, cell_type_level_constraint = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
-            return pred, target, neuron_level_attention
-        elif self.hparams.model_type == "Attention_With_Constraint_2":
-            pred, neuron_level_attention, cell_type_level_constraint, neuron_level_attention3 = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
-            return pred, target, neuron_level_attention, neuron_level_attention3
+
+        pred, neuron_level_attention, cell_type_level_constraint, neuron_level_attention3 = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
+        return pred, target, neuron_level_attention, neuron_level_attention3
     
 
 
@@ -1138,6 +1141,7 @@ class Attention_With_Constraint(Base_2):
         # self.cell_type_level_constraint = nn.Parameter(torch.zeros((num_cell_types, num_cell_types)), requires_grad=True)
         self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
         # self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(0, 1))
+        self.cell_type_level_var = nn.Parameter(torch.ones(num_cell_types, num_cell_types), requires_grad=True)
 
         self.predict_window_size = predict_window_size
 
@@ -1151,7 +1155,6 @@ class Attention_With_Constraint(Base_2):
             num_embeddings=num_unqiue_neurons, embedding_dim=hidden_size_1   # global unique neuron lookup table
         )
         dim_in = hidden_size_1
-        self.layer_norm = nn.LayerNorm(dim_in)
 
         self.attentionlayers = nn.ModuleList()
 
@@ -1216,14 +1219,17 @@ class Attention_With_Constraint(Base_2):
         # Add positional encoding
         # print("x.shape: ", x.shape)
         # print("self.embedding_table(neuron_ids[0]).shape: ", self.embedding_table(neuron_ids[0]).shape)
-        x_e = x + self.embedding_table(neuron_ids[0])   # the first dimension doesn't matter
-        x_e = self.layer_norm(x_e)
+        e = self.embedding_table(neuron_ids[0])   # the first dimension doesn't matter
 
         attention_results = []
-        x, attn = self.attentionlayers[0][0](x_e)
+        attention3_results = []
+        output, attn, attn3 = self.attentionlayers[0][0](x, e)
         attention_results.append(attn)
+        attention3_results.append(attn3)
 
-        x = self.attentionlayers[1][0](x)
+        output = self.attentionlayers[1][0](output)
+
+        # output = output + (x+e)       ################### residual connection
 
         # x = self.fc2(x)
         # for layer in self.fclayers2:
@@ -1232,7 +1238,7 @@ class Attention_With_Constraint(Base_2):
         # x = self.out(x)
 
         batch_neuron_num = attention_results[0].shape[-1]
-        return x[:, :, -1*self.predict_window_size:], attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
+        return output[:, :, -1*self.predict_window_size:], attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint, attention3_results[0].view(-1, batch_neuron_num, batch_neuron_num)
         # return x @ self.out_relu(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
         # return x @ torch.abs(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
         # return x @ self.out_softmax(self.out), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint
@@ -1296,12 +1302,12 @@ class Attention_With_Constraint_2(Base_2):
                     causal_temporal_map = causal_temporal_map,
                     diff = causal_temporal_map_diff,
                 ),
-                nn.LayerNorm(dim_X)
+                nn.LayerNorm(dim_X),
             )
         )
 
-        self.out = nn.Linear(dim_X, predict_window_size, bias=False)
-        self.out_relu = nn.ReLU()
+        # self.out = nn.Linear(dim_X+dim_E, predict_window_size, bias=False)
+        # self.out_relu = nn.ReLU()
 
         # self.out = nn.Parameter(torch.FloatTensor(dim_X, predict_window_size).uniform_(0, 1))
 
@@ -1318,5 +1324,6 @@ class Attention_With_Constraint_2(Base_2):
         x = self.attentionlayers[0][1](x)
 
         batch_neuron_num = attention_results[0].shape[-1]
-        self.out.weight.data = self.out_relu(self.out.weight.data)
-        return self.out(x), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint, attention3_results[0].view(-1, batch_neuron_num, batch_neuron_num)
+        # self.out.weight.data = self.out_relu(self.out.weight.data)
+        return x[:, :, -1*self.predict_window_size:], attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint, attention3_results[0].view(-1, batch_neuron_num, batch_neuron_num)
+        # return self.out(x), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint, attention3_results[0].view(-1, batch_neuron_num, batch_neuron_num)

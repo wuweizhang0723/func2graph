@@ -144,10 +144,15 @@ def generate_simulation_data(
     # torch.manual_seed(data_random_seed)
 
     if data_type == "ziyu":
-        data, S = ziyu_data_simulator()
-        total_time = data.shape[1]
-        neuron_num = data.shape[0]
-        data = torch.from_numpy(data).float()
+        v_normed_alltimes = pd.read_csv('../data/Ziyu/20/v_normed_alltimes.txt', header=None, sep=',')
+        v_normed_alltimes = v_normed_alltimes.to_numpy()
+
+        total_time = v_normed_alltimes.shape[1]
+        neuron_num = v_normed_alltimes.shape[0]
+        data = torch.from_numpy(v_normed_alltimes).float()
+
+        W = pd.read_csv('../data/Ziyu/20/connectivity.txt', header=None, sep=',')
+        W = W.to_numpy()
 
     elif data_type == "wuwei":
         simulator = data_simulator(
@@ -325,9 +330,9 @@ def generate_simulation_data(
 
     if spatial_partial_measurement == neuron_num:
         if data_type == "ziyu":
-            return train_dataloader, val_dataloader, torch.from_numpy(S)
+            return train_dataloader, val_dataloader, torch.from_numpy(v_normed_alltimes[:,0]), torch.from_numpy(W)
         elif data_type == "wuwei":
-            return train_dataloader, val_dataloader, simulator.W_ij, simulator.cell_type_ids, simulator.cell_type_order, simulator.cell_type_count
+            return train_dataloader, val_dataloader, simulator.W_ij, simulator.b, simulator.cell_type_ids, simulator.cell_type_order, simulator.cell_type_count
         elif data_type == "c_elegans":
             return train_dataloader, val_dataloader, (torch.from_numpy(S_E), torch.from_numpy(S_Chem))
     else:
@@ -347,87 +352,12 @@ def generate_simulation_data(
                 cell_type = id2cell_type[new_cell_type_ids[i]]
                 new_cell_type_count[cell_type] += 1
 
-            return train_dataloader, val_dataloader, new_W_ij, new_cell_type_ids, simulator.cell_type2id, new_cell_type_count
+            return train_dataloader, val_dataloader, new_W_ij, new_cell_type_ids, simulator.cell_type_order, new_cell_type_count
     
 
 
 
 
-
-
-
-
-# Ziyu's Data ------------------------------------------------------------------------
-
-
-def ziyu_data_simulator():
-    # Set random seed for reproducibility
-    np.random.seed(0)
-
-    Ne = 4
-    Ni = 1
-
-    re = np.random.rand(Ne, 1)
-    ri = np.random.rand(Ni, 1)
-
-    a = np.concatenate((0.02 * np.ones((Ne, 1)), 0.02 + 0.08 * ri), axis=0)
-    b = -0.1 * np.ones((Ne + Ni, 1))
-    c = np.concatenate((-65 + 15 * re**2, -65 * np.ones((Ni, 1))), axis=0)
-    d = np.concatenate((8 - 6 * re**2, 2 * np.ones((Ni, 1))), axis=0)
-
-    params = np.concatenate((a, b, c, d), axis=1)
-
-    S0 = 5
-
-    # Specify connectivity
-    S = np.zeros((Ne + Ni, Ne + Ni))
-    S[0, 3] = 1
-    S[3, 0] = 1
-    S[1, 2] = 1
-    S[2, 1] = 1
-    S[2, 3] = 1
-    S[3, 2] = 1
-    S[1, 4] = -1
-    S[4, 1] = 1
-    S = S0 * S
-
-    v = -65 * np.ones((Ne + Ni, 1))
-    u = b * v
-    firings = []
-    V = [v]
-    U = [u]
-    inps = []
-
-    for t in range(1, 5001):  # Simulation of 5000 ms
-        I = np.concatenate((5 * np.ones((Ne, 1)), 5 * np.ones((Ni, 1))), axis=0)
-        inps.append(I)
-        fired = np.where(v >= 30)[0]
-        firings.extend([(t + 0 * f, f) for f in fired])
-        v[fired] = c[fired]
-        u[fired] = u[fired] + d[fired]
-        I = I + np.sum(S[:, fired], axis=1).reshape(-1, 1)
-        v = v + 0.5 * (0.04 * v**2 + 4.1 * v + 108 - u + I)
-        v = v + 0.5 * (0.04 * v**2 + 4.1 * v + 108 - u + I)
-        u = u + a * (b * v - u)
-        V.append(v)
-        U.append(u)
-
-    firings = np.array(firings)
-    
-    result = np.zeros((5, 5000))
-    result[0][firings[firings[:,1]==0]-1] = 1
-    result[1][firings[firings[:,1]==1]-1] = 1
-    result[2][firings[firings[:,1]==2]-1] = 1
-    result[3][firings[firings[:,1]==3]-1] = 1
-    result[4][firings[firings[:,1]==4]-1] = 1
-
-    # result[0] = 5 * result[0]
-    # result[1] = 5 * result[1]
-    # result[2] = 5 * result[2]
-    # result[3] = 5 * result[3]
-    # result[4] = 2.5 * result[4]
-
-    return result, S
 
 
 
@@ -753,18 +683,22 @@ def generate_mouse_all_sessions_data(
 
     sessions_2_original_cell_type = []
 
+    all_sessions_activity_flatten = []
+
     for i in range(len(input_sessions_file_path)):
         date_exp = input_sessions_file_path[i]['date_exp']
         input_setting = input_sessions_file_path[i]['input_setting']
 
         activity, frame_times, UniqueID, neuron_ttypes = load_mouse_data_session(
-            directory, date_exp, input_setting, normalization
+            directory, date_exp, input_setting, normalization="no"
         )
 
         all_sessions_original_UniqueID.append(UniqueID)
         all_sessions_acitvity_TRAIN.append(activity[:, :int(activity.shape[1]*split_ratio)])
         all_sessions_acitvity_VAL.append(activity[:, int(activity.shape[1]*split_ratio):])
         num_neurons_per_session.append(activity.shape[0])
+
+        all_sessions_activity_flatten.append(activity.flatten())
 
         # Get the first level of cell types
         neuron_types_result = []
@@ -777,6 +711,13 @@ def generate_mouse_all_sessions_data(
 
     all_sessions_original_UniqueID = np.concatenate(all_sessions_original_UniqueID)
     all_sessions_original_cell_type = np.concatenate(all_sessions_original_cell_type)
+
+    all_sessions_activity_flatten = np.concatenate(all_sessions_activity_flatten)
+    mu = np.mean(all_sessions_activity_flatten)
+    std = np.std(all_sessions_activity_flatten)
+
+    all_sessions_acitvity_TRAIN = [(session - mu) / std for session in all_sessions_acitvity_TRAIN]
+    all_sessions_acitvity_VAL = [(session - mu) / std for session in all_sessions_acitvity_VAL]
     
 
     ##############################################

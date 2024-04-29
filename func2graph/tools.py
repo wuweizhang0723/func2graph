@@ -145,67 +145,51 @@ def construct_weight_matrix_cell_type(neuron_num):
 # This function is used to get k*k attention matrix from a N*N attention matrix
 # It is for the first Attention model, which doesn't have k*k prior constraint.
 #
-def group_connectivity_matrix_by_cell_type(estimated_connectivity_matrix, neuron_types):
+# estimated_connectivity_matrix - N*N connectivity matrix
+# neuron_id_2_cell_type_id - a list of cell type id for each neuron, where the list index is the neuron id
+# 
+def group_connectivity_matrix_by_cell_type(estimated_connectivity_matrix, neuron_id_2_cell_type_id):
+    assert estimated_connectivity_matrix.shape[0] == estimated_connectivity_matrix.shape[1]
+    assert estimated_connectivity_matrix.shape[0] == len(neuron_id_2_cell_type_id)
 
-    # Create an index of for each cell type, and also the list of cells (their original indices) in each cell type ###############
-    
-    cell_type2cell_type_index = {}
-    cell_in_cell_type = {}
-    cell_type_index2cell_type = {}
-    cell_type_count = {}
-
-    cell_type_index_count = 0
-    for i in range(len(neuron_types)):
-        # if cell type doesn't exist, add it to the order
-        if neuron_types[i] not in cell_type2cell_type_index:
-            cell_type2cell_type_index[neuron_types[i]] = cell_type_index_count
-            cell_type_index_count += 1
-
-        if neuron_types[i] not in cell_in_cell_type:
-            cell_in_cell_type[neuron_types[i]] = [i]
+    # cell_type_id2cell_type is a dictionary, where the key is the cell type id, and the value is a list of neuron ids
+    cell_type_id2neuron_id = {}
+    for i in range(len(neuron_id_2_cell_type_id)):
+        if neuron_id_2_cell_type_id[i] not in cell_type_id2neuron_id:
+            cell_type_id2neuron_id[neuron_id_2_cell_type_id[i]] = [i]
         else:
-            cell_in_cell_type[neuron_types[i]].append(i)
-
-    for cell_type in cell_type2cell_type_index:
-        cell_type_index2cell_type[cell_type2cell_type_index[cell_type]] = cell_type
-
-    for cell_type in cell_type2cell_type_index:
-        cell_type_count[cell_type] = len(cell_in_cell_type[cell_type])
+            cell_type_id2neuron_id[neuron_id_2_cell_type_id[i]].append(i)
 
 
     # Create a new correlation matrix based on the cell type order #############################################################
 
-    connectivity_matrix_new = np.zeros((len(neuron_types), len(neuron_types)))
+    connectivity_matrix_new = np.zeros((len(neuron_id_2_cell_type_id), len(neuron_id_2_cell_type_id)))
 
     current_cell_type_index_i = 0
     index_of_cell_in_cell_type_i = 0
-    for i in range(len(neuron_types)):
-        if index_of_cell_in_cell_type_i >= len(cell_in_cell_type[cell_type_index2cell_type[current_cell_type_index_i]]):
+    for i in range(len(neuron_id_2_cell_type_id)):
+        if index_of_cell_in_cell_type_i >= len(cell_type_id2neuron_id[current_cell_type_index_i]):
             current_cell_type_index_i += 1
             index_of_cell_in_cell_type_i = 0
 
-        current_cell_type_i = cell_type_index2cell_type[current_cell_type_index_i]
-
         # get the index of the cell in the original correlation matrix
-        old_i = cell_in_cell_type[current_cell_type_i][index_of_cell_in_cell_type_i]  
+        old_i = cell_type_id2neuron_id[current_cell_type_index_i][index_of_cell_in_cell_type_i]  
         index_of_cell_in_cell_type_i += 1
 
         current_cell_type_index_j = 0
         index_of_cell_in_cell_type_j = 0
-        for j in range(len(neuron_types)):
-            if index_of_cell_in_cell_type_j >= len(cell_in_cell_type[cell_type_index2cell_type[current_cell_type_index_j]]):
+        for j in range(len(neuron_id_2_cell_type_id)):
+            if index_of_cell_in_cell_type_j >= len(cell_type_id2neuron_id[current_cell_type_index_j]):
                 current_cell_type_index_j += 1
                 index_of_cell_in_cell_type_j = 0
 
-            current_cell_type_j = cell_type_index2cell_type[current_cell_type_index_j]
-
             # get the index of the cell in the original correlation matrix
-            old_j = cell_in_cell_type[current_cell_type_j][index_of_cell_in_cell_type_j]
+            old_j = cell_type_id2neuron_id[current_cell_type_index_j][index_of_cell_in_cell_type_j]
             index_of_cell_in_cell_type_j += 1
 
             connectivity_matrix_new[i, j] = estimated_connectivity_matrix[old_i, old_j]
 
-    return connectivity_matrix_new, cell_type_index2cell_type, cell_type2cell_type_index, cell_type_count
+    return connectivity_matrix_new
 
 
 # connectivity_matrix_new - grouped N*N connectivity matrix
@@ -321,12 +305,19 @@ def assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per
     
     # Assign IDs to cell types
     cell_type_order = [unique_cell_types[i] for i in range(len(unique_cell_types))]
-    print('cell_type_order:', cell_type_order)
+    print('cell_type_order:', cell_type_order)   
+
+    # Get the number of neurons in each cell type
+    # cell_type_id2number = {cell_type_order[i]: 0 for i in range(len(cell_type_order))}
 
     # Get new cell type IDs
     all_sessions_new_cell_type_id = np.zeros(len(all_sessions_original_cell_type)).astype(int)
     for i in range(len(all_sessions_original_cell_type)):
         all_sessions_new_cell_type_id[i] = cell_type_order.index(all_sessions_original_cell_type[i])
+
+        # cell_type_id2number[all_sessions_original_cell_type[i]] += 1
+    
+    # print(cell_type_id2number)
 
     # Segment all_sessions_new_cell_type_id into sessions
     all_sessions_new_cell_type_id = np.split(all_sessions_new_cell_type_id, np.cumsum(num_neurons_per_session)[:-1])

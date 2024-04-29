@@ -688,7 +688,7 @@ class Attention_With_Constraint_sim(Base_3):
         #         print('3')
         #         x, attn = x
         #         attention_results.append(attn)
-            
+        
         return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
         # return self.out(x), attention_results[0], self.cell_type_level_constraint
 

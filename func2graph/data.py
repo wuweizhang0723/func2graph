@@ -144,14 +144,14 @@ def generate_simulation_data(
     # torch.manual_seed(data_random_seed)
 
     if data_type == "ziyu":
-        v_normed_alltimes = pd.read_csv('../data/Ziyu/20/v_normed_alltimes.txt', header=None, sep=',')
+        v_normed_alltimes = pd.read_csv('../data/Ziyu/200/v_normed_alltimes.txt', header=None, sep=',')
         v_normed_alltimes = v_normed_alltimes.to_numpy()
 
         total_time = v_normed_alltimes.shape[1]
         neuron_num = v_normed_alltimes.shape[0]
         data = torch.from_numpy(v_normed_alltimes).float()
 
-        W = pd.read_csv('../data/Ziyu/20/connectivity.txt', header=None, sep=',')
+        W = pd.read_csv('../data/Ziyu/200/connectivity.txt', header=None, sep=',')
         W = W.to_numpy()
 
     elif data_type == "wuwei":
@@ -800,12 +800,12 @@ def generate_mouse_all_sessions_data_for_GLM(
     
     directory = '../data/Mouse/Bugeon/'
     input_sessions_file_path = [
-        {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
         {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-08/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-09/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-23/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-24/', 'input_setting': 'Blank/01/'},
+        {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-08/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-09/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-23/', 'input_setting': 'Blank/01/'},
+        # {'date_exp': 'SB025/2019-10-24/', 'input_setting': 'Blank/01/'},
     ]
 
     all_sessions_original_UniqueID = []
@@ -816,18 +816,22 @@ def generate_mouse_all_sessions_data_for_GLM(
 
     sessions_2_original_cell_type = []
 
+    all_sessions_activity_flatten = []
+
     for i in range(len(input_sessions_file_path)):
         date_exp = input_sessions_file_path[i]['date_exp']
         input_setting = input_sessions_file_path[i]['input_setting']
 
         activity, frame_times, UniqueID, neuron_ttypes = load_mouse_data_session(
-            directory, date_exp, input_setting, normalization
+            directory, date_exp, input_setting, normalization='no'
         )
 
         all_sessions_original_UniqueID.append(UniqueID)
         all_sessions_acitvity_TRAIN.append(activity[:, :int(activity.shape[1]*split_ratio)])
         all_sessions_acitvity_VAL.append(activity[:, int(activity.shape[1]*split_ratio):])
         num_neurons_per_session.append(activity.shape[0])
+
+        all_sessions_activity_flatten.append(activity.flatten())
 
         # Get the first level of cell types
         neuron_types_result = []
@@ -840,6 +844,13 @@ def generate_mouse_all_sessions_data_for_GLM(
 
     all_sessions_original_UniqueID = np.concatenate(all_sessions_original_UniqueID)     # flatten to 1d
     all_sessions_original_cell_type = np.concatenate(all_sessions_original_cell_type)   # flatten to 1d
+
+    all_sessions_activity_flatten = np.concatenate(all_sessions_activity_flatten)
+    mu = np.mean(all_sessions_activity_flatten)
+    std = np.std(all_sessions_activity_flatten)
+
+    all_sessions_acitvity_TRAIN = [(session - mu) / std for session in all_sessions_acitvity_TRAIN]
+    all_sessions_acitvity_VAL = [(session - mu) / std for session in all_sessions_acitvity_VAL]
 
 
     ##############################################

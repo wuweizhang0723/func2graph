@@ -425,6 +425,11 @@ def multisession_NN_to_KK_1(
 
         for j in range(len(current_session_cell_type_id)):
             for k in range(len(current_session_cell_type_id)):
+
+                # Ignore the diagonal elements
+                if j == k:
+                    continue
+
                 if multisession_binary_NN_list is not None:
                     if current_session_binary_NN[j, k] == 0:
                         continue
@@ -483,6 +488,10 @@ def multisession_NN_to_KK_2(
         current_session_KK_count = np.zeros((len(cell_type_order), len(cell_type_order)))
         for j in range(len(current_session_cell_type_id)):
             for k in range(len(current_session_cell_type_id)):
+                
+                # Ignore the diagonal elements
+                if j == k:
+                    continue
 
                 if multisession_binary_NN_list is not None:
                     if current_session_binary_NN[j, k] == 0:

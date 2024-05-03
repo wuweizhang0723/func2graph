@@ -586,6 +586,7 @@ class Base_3(pl.LightningModule):
 class Attention_With_Constraint_sim(Base_3):
     def __init__(
         self,
+        b=None,
         model_random_seed=42,
         neuron_num=200,
         num_cell_types=4,
@@ -607,6 +608,9 @@ class Attention_With_Constraint_sim(Base_3):
     ):
         super().__init__()
         self.save_hyperparameters()
+
+        # self.b = b
+        # self.derivative_b = 1 - torch.tanh(b)**2
 
         self.predict_window_size = predict_window_size
         self.neuron_num = neuron_num
@@ -650,6 +654,7 @@ class Attention_With_Constraint_sim(Base_3):
                         activation = attention_activation,
                         causal_temporal_map = causal_temporal_map,
                         diff = causal_temporal_map_diff,
+                        # derivative_b = self.derivative_b,
                     ),
                 )
             )

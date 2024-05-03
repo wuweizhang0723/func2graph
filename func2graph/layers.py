@@ -194,6 +194,7 @@ class Causal_Temporal_Map_Attention(nn.Module):
     def __init__(
         self,
         dim,
+        derivative_b=None,
         *,
         dropout=0.0,
         prediction_mode=False,
@@ -204,6 +205,11 @@ class Causal_Temporal_Map_Attention(nn.Module):
         super().__init__()
         self.activation = activation
         # self.scale = dim ** -0.5
+
+        if derivative_b is None:
+            self.derivative_b = 1
+        else:
+            self.derivative_b = derivative_b.view(-1,1).to(device)
 
         self.layer_norm = nn.LayerNorm(dim)
 
@@ -261,7 +267,7 @@ class Causal_Temporal_Map_Attention(nn.Module):
 
         attn = self.attn_dropout(attn0)
 
-        out = einsum("b n m, b m t -> b n t", attn, v)
+        out = einsum("b n m, b m t -> b n t", self.derivative_b * attn, v)
 
         e_repeat = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
         attn3 = einsum("b n e, b m e -> b n m", self.W_Q_W_KT(e_repeat), e_repeat)

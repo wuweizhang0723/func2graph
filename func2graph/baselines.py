@@ -282,6 +282,8 @@ class GLM_M(Base_2):
 
         self.b = nn.Parameter(torch.randn(num_neurons))
         self.activation = nn.Tanh()
+
+        self.out = nn.Linear(num_neurons, num_neurons, bias=True)
        
     def forward(self, x): # x: batch_size * (neuron_num * tau)
         for i in range(1, self.k+1):
@@ -291,4 +293,4 @@ class GLM_M(Base_2):
             else:
                 output += self.W_list[i-1](input)
 
-        return self.activation(output + self.b)
+        return self.out(self.activation(output + self.b))

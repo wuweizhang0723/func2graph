@@ -716,6 +716,7 @@ def generate_mouse_all_sessions_data(
     mu = np.mean(all_sessions_activity_flatten)
     std = np.std(all_sessions_activity_flatten)
 
+    # all_sessions normalization
     all_sessions_acitvity_TRAIN = [(session - mu) / std for session in all_sessions_acitvity_TRAIN]
     all_sessions_acitvity_VAL = [(session - mu) / std for session in all_sessions_acitvity_VAL]
     
@@ -790,6 +791,8 @@ def generate_mouse_all_sessions_data(
 ########################################################################################
 
 def generate_mouse_all_sessions_data_for_GLM(
+    input_mouse: str,    # e.g. SB025
+    input_sessions: list,    # e.g. [2019-10-07, 2019-10-04]
     k,     # the number of tau(s) to consider, each tau corresponds to one A in GLM
     batch_size = 32,
     num_workers: int = 6, 
@@ -799,14 +802,9 @@ def generate_mouse_all_sessions_data_for_GLM(
 ):
     
     directory = '../data/Mouse/Bugeon/'
-    input_sessions_file_path = [
-        {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},
-        {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-08/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-09/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-23/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-24/', 'input_setting': 'Blank/01/'},
-    ]
+    input_sessions_file_path = []
+    for i in range(len(input_sessions)):
+        input_sessions_file_path.append({'date_exp': input_mouse + '/' + input_sessions[i] + '/', 'input_setting': 'Blank/01/'})
 
     all_sessions_original_UniqueID = []
     all_sessions_original_cell_type = []

@@ -295,14 +295,17 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
     ):
         super().__init__()
 
+        # self.layer_norm = nn.LayerNorm(dim_X + dim_E)
+
         self.causal_temporal_map = causal_temporal_map
         self.diff = diff
 
         # self.relu = nn.ReLU()
+        self.query_linear = nn.Linear(dim_X + dim_E, dim_X + dim_E, bias=False)
+        self.key_linear = nn.Linear(dim_X + dim_E, dim_X + dim_E, bias=False)
+
+        # TT
         self.W_Q_W_KT = nn.Linear(dim_X, dim_X, bias=False)
-        self.Wx_Q_We_KT = nn.Linear(dim_X, dim_E, bias=False)
-        self.We_Q_Wx_KT = nn.Linear(dim_E, dim_X, bias=False)
-        self.We_Q_We_KT = nn.Linear(dim_E, dim_E, bias=False)
 
         # dropouts
 
@@ -324,24 +327,39 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
         # self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data * self.mask.T
         # self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
 
-        if self.causal_temporal_map == 'off_diagonal_1':
-            self.W_Q_W_KT.weight.data = torch.ones(self.W_Q_W_KT.weight.data.shape[0], self.W_Q_W_KT.weight.data.shape[1], device=device) * self.mask.T
-        elif self.causal_temporal_map == 'off_diagonal':
-            self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data * self.mask.T
-        elif self.causal_temporal_map == 'lower_triangle':
-            self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
-
-        # self.W_Q_W_KT.weight.data = self.relu(self.W_Q_W_KT.weight.data)   # TT relu
-        attn0 = einsum("b n t, b m t -> b n m", self.W_Q_W_KT(x), x)
         e = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
-        attn1 = einsum("b n e, b m e -> b n m", self.Wx_Q_We_KT(x), e)
-        attn2 = einsum("b n t, b m t -> b n m", self.We_Q_Wx_KT(e), x)
-        attn3 = einsum("b n e, b m e -> b n m", self.We_Q_We_KT(e), e)
 
-        attn = attn0 + attn1 + attn2 + attn3
+        x_e = torch.cat((x, e), dim=-1)
+
+        # x_e = self.layer_norm(x_e)
+        # x = x_e[:, :, :-e.shape[-1]]
+        # e = x_e[:, :, -e.shape[-1]:]
+
+        batch_size, n, t = x.shape
+
+        # TT
+        # temp = (self.query_linear.weight.T)[:t] @ (self.key_linear.weight.T)[:t].T
+
+
+        # dim_E x dim_E
+        We_Q_We_KT = (self.query_linear.weight.clone().detach().T)[t:] @ (self.key_linear.weight.clone().detach().T)[t:].T
+
+        attn3 = einsum("b n e, b m e -> b n m", e @ We_Q_We_KT, e)
+
+        # if self.causal_temporal_map == 'off_diagonal_1':
+        #     self.W_Q_W_KT.weight.data = torch.ones(self.W_Q_W_KT.weight.data.shape[0], self.W_Q_W_KT.weight.data.shape[1], device=device) * self.mask.T
+        # elif self.causal_temporal_map == 'off_diagonal':
+        #     self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data * self.mask.T
+        # elif self.causal_temporal_map == 'lower_triangle':
+        #     self.W_Q_W_KT.weight.data = self.W_Q_W_KT.weight.data.triu(diagonal=1)
+
+        queries = self.query_linear(x_e)
+        keys = self.key_linear(x_e)
+
+        attn = einsum("b n d, b m d -> b n m", queries, keys)
         attn = self.attn_dropout(attn)
 
-        v = x.clone()  # identity mapping
+        v = x  # identity mapping
         # concat e to v, at the last dimension
         # v = torch.cat((x, e), dim=-1)
 

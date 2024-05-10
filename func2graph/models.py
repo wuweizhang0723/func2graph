@@ -1286,7 +1286,9 @@ class Attention_With_Constraint_2(Base_2):
         torch.manual_seed(model_random_seed)
 
         self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
+        self.cell_type_level_var = nn.Parameter(torch.ones(num_cell_types, num_cell_types), requires_grad=True)
 
+        self.predict_window_size = predict_window_size
         dim_X = window_size - predict_window_size
 
         # Attention

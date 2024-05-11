@@ -72,30 +72,6 @@ class Base(pl.LightningModule):
             pred = y_hat
             target = y
 
-        elif self.hparams.task_type == "mask":
-            # x, y, mask_indices = batch
-            # x_hat = self(x)
-
-            # # get the masked part from x_hat to be y_hat
-            # y_hat = torch.zeros(y.shape).to(y.device)
-            # for i in range(mask_indices.shape[0]):
-            #     for j in range(mask_indices.shape[1]):
-            #         y_hat[i, :, j] = x_hat[i, :, mask_indices[i, j]]
-            #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
-
-            x, y, mask_indices_i, mask_indices_j = batch
-            x_hat = self(x)
-
-            # get the masked part from x_hat to be y_hat
-            y_hat = torch.zeros(y.shape).to(y.device)
-            n_sample, mask_size = mask_indices_i.shape
-            for i in range(n_sample):
-                for j in range(mask_size):
-                    y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
-
-            pred = y_hat
-            target = y
-
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
         elif self.hparams.loss_function == "poisson":
@@ -126,32 +102,6 @@ class Base(pl.LightningModule):
 
             result = torch.stack([pred.cpu().detach(), target.cpu().detach()], dim=1)
 
-        elif self.hparams.task_type == "mask":
-            # x, y, mask_indices = batch
-            # x_hat = self(x)
-
-            # # get the masked part from x_hat to be y_hat
-            # y_hat = torch.zeros(y.shape).to(y.device)
-            # for i in range(mask_indices.shape[0]):
-            #     for j in range(mask_indices.shape[1]):
-            #         y_hat[i, :, j] = x_hat[i, :, mask_indices[i, j]]
-            #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
-
-            x, y, mask_indices_i, mask_indices_j = batch
-            x_hat = self(x)
-
-            # get the masked part from x_hat to be y_hat
-            y_hat = torch.zeros(y.shape).to(y.device)
-            n_sample, mask_size = mask_indices_i.shape
-            for i in range(n_sample):
-                for j in range(mask_size):
-                    y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
-
-            pred = y_hat
-            target = y
-
-            result = torch.stack([y_hat.cpu().detach(), y.cpu().detach()], dim=1)
-
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "poisson":
@@ -176,29 +126,6 @@ class Base(pl.LightningModule):
             
             pred = y_hat
             target = y
-        elif self.hparams.task_type == "mask":
-            # x, y, mask_indices = batch
-            # x_hat = self(x)
-
-            # # get the masked part from x_hat to be y_hat
-            # y_hat = torch.zeros(y.shape).to(y.device)
-            # for i in range(mask_indices.shape[0]):
-            #     for j in range(mask_indices.shape[1]):
-            #         y_hat[i, :, j] = x_hat[i, :, mask_indices[i, j]]
-            #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
-
-            x, y, mask_indices_i, mask_indices_j = batch
-            x_hat = self(x)
-
-            # get the masked part from x_hat to be y_hat
-            y_hat = torch.zeros(y.shape).to(y.device)
-            n_sample, mask_size = mask_indices_i.shape
-            for i in range(n_sample):
-                for j in range(mask_size):
-                    y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
-
-            pred = y_hat
-            target = y
 
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean")
@@ -220,29 +147,6 @@ class Base(pl.LightningModule):
         elif self.hparams.task_type == "prediction":
             x, y = batch
             y_hat, attention, neuron_embedding = self(x)
-
-            return y_hat, y, attention, neuron_embedding
-        
-        elif self.hparams.task_type == "mask":
-            # x, y, mask_indices = batch
-            # x_hat, attention = self(x)
-
-            # # get the masked part from x_hat to be y_hat
-            # y_hat = torch.zeros(y.shape).to(y.device)
-            # for i in range(mask_indices.shape[0]):
-            #     for j in range(mask_indices.shape[1]):
-            #         y_hat[i, :, j] = x_hat[i, :, mask_indices[i, j]]
-            #         # y_hat[i, j, :] = x_hat[i, mask_indices[i, j], :]
-
-            x, y, mask_indices_i, mask_indices_j = batch
-            x_hat, attention, neuron_embedding = self(x)
-
-            # get the masked part from x_hat to be y_hat
-            y_hat = torch.zeros(y.shape).to(y.device)
-            n_sample, mask_size = mask_indices_i.shape
-            for i in range(n_sample):
-                for j in range(mask_size):
-                    y_hat[i, j] = x_hat[i, mask_indices_i[i, j], mask_indices_j[i, j]]
 
             return y_hat, y, attention, neuron_embedding
     
@@ -292,7 +196,7 @@ class Attention_Autoencoder(Base):
 
         # MLP_1
 
-        if (task_type == "reconstruction") or (task_type == "mask"):
+        if (task_type == "reconstruction"):
             hidden_size_1 = window_size
         elif task_type == "prediction":
             hidden_size_1 = window_size - predict_window_size
@@ -595,7 +499,7 @@ class Attention_With_Constraint_sim(Base_3):
         learning_rate=1e-4,
         scheduler="plateau",
         pos_enc_type="lookup_table",  # "sin_cos" or "lookup_table" or "none"
-        task_type = "prediction",    # "reconstruction" or "prediction" or "mask"
+        task_type = "prediction",    # "reconstruction" or "prediction"
         predict_window_size=1,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         attention_activation = "none", # "softmax" or "sigmoid" or "tanh", "none"
@@ -621,7 +525,7 @@ class Attention_With_Constraint_sim(Base_3):
         self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
         # self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(0, 1))
 
-        if (task_type == "reconstruction") or (task_type == "mask"):
+        if (task_type == "reconstruction"):
             hidden_size_1 = window_size
         elif task_type == "prediction":
             hidden_size_1 = window_size - predict_window_size
@@ -696,254 +600,6 @@ class Attention_With_Constraint_sim(Base_3):
         
         return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
         # return self.out(x), attention_results[0], self.cell_type_level_constraint
-
-
-
-
-
-
-
-
-
-# spatial_temporal_1: spatial attention has no value matrix
-# spatial_temporal_2: temporal attention has no value matrix
-# spatial_temporal_3: spatial attention has value matrix, temporal attention has value matrix
-# spatial: there is no temporal attention
-#
-class Spatial_Temporal_Attention_Model(Base):
-    def __init__(
-        self,
-        model_random_seed=42,
-        neuron_num=10,
-        window_size=200,
-        predict_window_size = 100,
-        hidden_size_1_T=128, # MLP_1
-        hidden_size_1_S=128,
-        h_layers_1=2,
-        attention_type = "spatial_temporal_1", # "spatial_temporal_1" or "spatial_temporal_2" or "spatial_temporal _3" or "spatial"
-        pos_enc_type="none",  # "sin_cos" or "lookup_table" or "none"
-        heads=1,  # Attention
-        hidden_size_2=256, # MLP_2
-        h_layers_2=2,
-        dropout=0.2,
-        learning_rate=1e-4,
-        prediction_mode=False,
-        task_type = "prediction",    # "reconstruction" or "prediction"
-    ):
-        super().__init__()
-        self.save_hyperparameters()
-
-        self.prediction_mode = prediction_mode
-
-        torch.manual_seed(model_random_seed)
-
-        # MLP_1
-
-        # x_S
-        if task_type == "reconstruction":
-            self.fc1_S = nn.Sequential(
-                nn.Linear(window_size, hidden_size_1_S), nn.ReLU()
-            )
-            # dim_S = T, dim_T = N
-            T = window_size
-            N = neuron_num
-        elif task_type == "prediction":
-            self.fc1_S = nn.Sequential(
-                nn.Linear(window_size - predict_window_size, hidden_size_1_S), nn.ReLU()
-            )
-            # dim_S = T, dim_T = N
-            T = (window_size-predict_window_size)
-            N = neuron_num
-
-        # x_T
-        self.fc1_T = nn.Sequential(
-            nn.Linear(neuron_num, hidden_size_1_T), nn.ReLU()
-        )
-
-        self.fclayers1_S = nn.ModuleList(
-            nn.Sequential(
-                nn.Linear(hidden_size_1_S, hidden_size_1_S), nn.ReLU(), nn.Dropout(dropout)
-            )
-            for layer in range(h_layers_1)
-        )
-
-        self.fclayers1_T = nn.ModuleList(
-            nn.Sequential(
-                nn.Linear(hidden_size_1_T, hidden_size_1_T), nn.ReLU(), nn.Dropout(dropout)
-            )
-            for layer in range(h_layers_1)
-        )
-
-        if task_type == "reconstruction":
-            self.fclayers1_S.append(
-                nn.Sequential(
-                    nn.Linear(hidden_size_1_S, window_size), nn.ReLU()
-                )
-            )
-        elif task_type == "prediction":
-            self.fclayers1_S.append(
-                nn.Sequential(
-                    nn.Linear(hidden_size_1_S, window_size - predict_window_size), nn.ReLU()
-                )
-            )
-        
-        self.fclayers1_T.append(
-            nn.Sequential(
-                nn.Linear(hidden_size_1_T, neuron_num), nn.ReLU()
-            )
-        )
-
-
-        # Positional Encoding
-
-        self.pos_enc_type = pos_enc_type
-        if pos_enc_type == "sin_cos":
-            # X_S
-            self.position_enc_S = PositionalEncoding(encoding_dim=T, num=N)
-            self.layer_norm_S = nn.LayerNorm(T)
-            # X_T
-            self.position_enc_T = PositionalEncoding(encoding_dim=N, num=T)
-            self.layer_norm_T = nn.LayerNorm(N)
-        elif pos_enc_type == "lookup_table":
-            # X_S
-            self.embedding_table_S = nn.Embedding(num_embeddings=N, embedding_dim=T)
-            self.layer_norm_S = nn.LayerNorm(T)
-            # X_T
-            self.embedding_table_T = nn.Embedding(num_embeddings=T, embedding_dim=N)
-            self.layer_norm_T = nn.LayerNorm(N)
-
-        # Attention
-
-        self.attentionlayers = nn.ModuleList()
-
-        # self.attentionlayers.append(
-        #     nn.Sequential(
-        #         Residual_For_Attention(
-        #             Spatial_Temporal_Attention(
-        #                 dim_T = N,
-        #                 dim_S = T,
-        #                 heads=heads,
-        #                 dim_key_T=N,
-        #                 dim_value_T=N,    # dim_value_T = dim_T = N must be satisfied
-        #                 dim_key_S=T,
-        #                 dim_value_S=T,   # dim_value_S = dim_S = T must be satisfied
-        #                 prediction_mode=self.prediction_mode,
-        #                 attention_type = attention_type,
-        #                 pos_enc_type=pos_enc_type,
-        #             ),
-        #             prediction_mode=self.prediction_mode,
-        #         ),
-        #     )
-        # )
-
-        self.attentionlayers.append(
-            nn.Sequential(
-                Spatial_Temporal_Attention(
-                    dim_T = N,
-                    dim_S = T,
-                    heads=heads,
-                    dim_key_T=N,
-                    dim_value_T=N,    # dim_value_T = dim_T = N must be satisfied
-                    dim_key_S=T,
-                    dim_value_S=T,   # dim_value_S = dim_S = T must be satisfied
-                    prediction_mode=self.prediction_mode,
-                    attention_type = attention_type,
-                    pos_enc_type=pos_enc_type,
-                ),
-            )
-        )
-
-        self.attentionlayers.append(
-            nn.Sequential(
-                nn.LayerNorm(T),
-                Residual(
-                    nn.Sequential(
-                        nn.Linear(T, T * 2),
-                        nn.Dropout(dropout),
-                        nn.ReLU(),
-                        nn.Linear(T * 2, T),
-                        nn.Dropout(dropout),
-                    )
-                ),
-                nn.LayerNorm(T),
-            )
-        )
-
-        # MLP
-
-        self.fc2 = nn.Sequential(
-            nn.Linear(T, hidden_size_2), nn.ReLU()
-        )
-
-        self.fclayers2 = nn.ModuleList(
-            nn.Sequential(
-                nn.Linear(hidden_size_2, hidden_size_2), nn.ReLU(), nn.Dropout(dropout)
-            )
-            for layer in range(h_layers_2)
-        )
-
-        if task_type == "reconstruction":
-            self.out = nn.Linear(hidden_size_2, window_size)
-        elif task_type == "prediction":
-            self.out = nn.Linear(hidden_size_2, predict_window_size)
-
-    def forward(self, x): # x: batch_size * neuron_num * time
-        x_S = x.clone()
-        x_T = x.permute(0, 2, 1)
-
-        # x_S
-        x_S = self.fc1_S(x_S)
-        for layer in self.fclayers1_S:
-            x_S = layer(x_S)
-
-        # x_T
-        x_T = self.fc1_T(x_T)
-        for layer in self.fclayers1_T:
-            x_T = layer(x_T)
-
-        # Positional Encoding
-
-        if self.pos_enc_type == "sin_cos":
-            # Add positional encoding
-            x_T = self.position_enc_T(x_T)
-            x_T = self.layer_norm_T(x_T)
-
-            x_S = self.position_enc_S(x_S)
-            x_S = self.layer_norm_S(x_S)
-        elif self.pos_enc_type == "lookup_table":
-            # Add positional encoding
-            idx = torch.arange(x_T.shape[1]).to(x_T.device)
-            x_T = x_T + self.embedding_table_T(idx)
-            x_T = self.layer_norm_T(x_T)
-
-            idx = torch.arange(x_S.shape[1]).to(x_S.device)
-            x_S = x_S + self.embedding_table_S(idx)
-            x_S = self.layer_norm_S(x_S)
-
-        attention_results = []
-
-        x = (x_T, x_S)
-        x = self.attentionlayers[0](x)
-        if type(x) is tuple:
-            x, attn = x
-            attention_results.append(attn)
-
-        x = self.attentionlayers[1](x)
-
-        # MLP_2
-
-        x = self.fc2(x)
-        for layer in self.fclayers2:
-            x = layer(x)
-
-        x = self.out(x)
-
-        if self.hparams.prediction_mode == True:
-            return x, attention_results[0]
-        else:
-            return x
-
-        
 
 
 
@@ -1216,8 +872,8 @@ class Attention_With_Constraint(Base_2):
 
         # self.out = nn.Linear(dim_in, predict_window_size, bias=False)
 
-        self.out = nn.Parameter(torch.FloatTensor(dim_in, predict_window_size).uniform_(0, 1))
-        self.out_relu = nn.ReLU()
+        # self.out = nn.Parameter(torch.FloatTensor(dim_in, predict_window_size).uniform_(0, 1))
+        # self.out_relu = nn.ReLU()
         # self.out_softmax = nn.Softmax(dim=0)
 
     def forward(self, x, neuron_ids): # x: batch_size * (neuron_num*time), neuron_ids: batch_size * neuron_num

@@ -85,25 +85,25 @@ def construct_weight_matrix_cell_type(neuron_num):
     cutoff_matrix[3, 3] = 2/209
 
     strength_matrix = np.zeros((4, 4))
-    strength_matrix[0, 0] = 0.3
-    strength_matrix[1, 0] = 0.59
-    strength_matrix[2, 0] = 0.88
-    strength_matrix[3, 0] = 1.89
+    strength_matrix[0, 0] = 0.11
+    strength_matrix[1, 0] = 0.27
+    strength_matrix[2, 0] = 0.1
+    strength_matrix[3, 0] = 0.45
 
-    strength_matrix[0, 1] = -0.43
-    strength_matrix[1, 1] = -0.53
-    strength_matrix[2, 1] = -0.60
-    strength_matrix[3, 1] = -0.44
+    strength_matrix[0, 1] = -0.44
+    strength_matrix[1, 1] = -0.47
+    strength_matrix[2, 1] = -0.44
+    strength_matrix[3, 1] = -0.23
 
-    strength_matrix[0, 2] = -0.31
-    strength_matrix[1, 2] = -0.43
-    strength_matrix[2, 2] = -0.43
-    strength_matrix[3, 2] = -0.79
+    strength_matrix[0, 2] = -0.16
+    strength_matrix[1, 2] = -0.18
+    strength_matrix[2, 2] = -0.19
+    strength_matrix[3, 2] = -0.17
 
-    strength_matrix[0, 3] = -0.25
-    strength_matrix[1, 3] = -0.30
-    strength_matrix[2, 3] = -0.42
-    strength_matrix[3, 3] = -0.33
+    strength_matrix[0, 3] = -0.06
+    strength_matrix[1, 3] = -0.10
+    strength_matrix[2, 3] = -0.17
+    strength_matrix[3, 3] = -0.10
 
     # uniformly initialize weight matrix with uniform distribution from 0 to 1
     weight_matrix = torch.rand(neuron_num, neuron_num)

@@ -127,7 +127,7 @@ def generate_simulation_data(
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
-    task_type = "prediction",    # "reconstruction" or "prediction" or "baseline_2" or "mask"
+    task_type = "prediction",    # "reconstruction" or "prediction" or "baseline_2"
     predict_window_size = 100,
     data_type = "wuwei", #"ziyu", "c_elegans", "mouse"
     mask_size = 100,    # the number of elements to mask for each sample (each window)
@@ -213,7 +213,7 @@ def generate_simulation_data(
     train_data = data[:, :train_data_length]
     val_data = data[:, train_data_length:]
 
-    if (task_type == "reconstruction") or (task_type == "prediction") or (task_type == "mask"):
+    if (task_type == "reconstruction") or (task_type == "prediction"):
         val_data_size = val_data.shape[1] - window_size + 1
         val_start_indices = torch.arange(val_data_size)
 
@@ -251,55 +251,6 @@ def generate_simulation_data(
                 train_data_result.append(sample.view(1, neuron_num, window_size))
         train_data = torch.cat(train_data_result, dim=0)
 
-        if (task_type == "mask"):
-            # # randomly choose mask_size time steps to mask for each sample
-            # train_mask_indices = torch.randint(low=0, high=window_size, size=(train_data_size, mask_size))
-            # # train_mask_indices = torch.randint(low=0, high=neuron_num, size=(train_data_size, mask_size))
-            # # mask all elements in mask_indices to be 0
-            # train_x = train_data.clone()
-            # train_y = torch.zeros((train_data_size, neuron_num, mask_size))
-            # # train_y = torch.zeros((train_data_size, mask_size, window_size))
-            # for i in range(train_data_size):
-            #     for j in range(mask_size):
-            #         train_x[i, :, train_mask_indices[i][j]] = 0
-            #         train_y[i, :, j] = train_data[i, :, train_mask_indices[i][j]]
-            #         # train_x[i, train_mask_indices[i][j], :] = 0
-            #         # train_y[i, j, :] = train_data[i, train_mask_indices[i][j], :]
-
-            # val_mask_indices = torch.randint(low=0, high=window_size, size=(val_data_size, mask_size))
-            # # val_mask_indices = torch.randint(low=0, high=neuron_num, size=(val_data_size, mask_size))
-            # val_x = val_data.clone()
-            # val_y = torch.zeros((val_data_size, neuron_num, mask_size))
-            # # val_y = torch.zeros((val_data_size, mask_size, window_size))
-            # for i in range(val_data_size):
-            #     for j in range(mask_size):
-            #         val_x[i, :, val_mask_indices[i][j]] = 0
-            #         val_y[i, :, j] = val_data[i, :, val_mask_indices[i][j]]
-            #         # val_x[i, val_mask_indices[i][j], :] = 0
-            #         # val_y[i, j, :] = val_data[i, val_mask_indices[i][j], :]
-
-
-            # randomly choose mask_size elements to mask for each sample
-            train_mask_indices_i = torch.randint(low=0, high=neuron_num, size=(train_data_size, mask_size))
-            train_mask_indices_j = torch.randint(low=0, high=window_size, size=(train_data_size, mask_size))
-            # mask all elements in mask_indices to be 0
-            train_x = train_data.clone()
-            train_y = torch.zeros((train_data_size, mask_size))
-            for i in range(train_data_size):
-                for j in range(mask_size):
-                    train_x[i, train_mask_indices_i[i][j], train_mask_indices_j[i][j]] = 0
-                    train_y[i, j] = train_data[i, train_mask_indices_i[i][j], train_mask_indices_j[i][j]]
-
-
-            val_mask_indices_i = torch.randint(low=0, high=neuron_num, size=(val_data_size, mask_size))
-            val_mask_indices_j = torch.randint(low=0, high=window_size, size=(val_data_size, mask_size))
-            val_x = val_data.clone()
-            val_y = torch.zeros((val_data_size, mask_size))
-            for i in range(val_data_size):
-                for j in range(mask_size):
-                    val_x[i, val_mask_indices_i[i][j], val_mask_indices_j[i][j]] = 0
-                    val_y[i, j] = val_data[i, val_mask_indices_i[i][j], val_mask_indices_j[i][j]]
-
 
 
     elif task_type == "baseline_2":  
@@ -320,9 +271,6 @@ def generate_simulation_data(
     elif task_type == "baseline_2":
         train_dataset = TensorDataset(train_x, train_y)
         val_dataset = TensorDataset(val_x, val_y)
-    elif task_type == "mask":
-        train_dataset = TensorDataset(train_x, train_y, train_mask_indices_i, train_mask_indices_j)
-        val_dataset = TensorDataset(val_x, val_y, val_mask_indices_i, val_mask_indices_j)
 
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -494,16 +442,6 @@ def c_elegans_data_simulator():
 # Mouse Data --------------------------------------------------------------------------
 
 
-# def mouse_data_simulator(directory, date_exp, input_setting, session_normalization):
-#     # load data
-#     activity,frame_times,UniqueID,neuron_ttypes = load_mouse_data_session(directory, date_exp, input_setting, session_normalization)
-
-#     # load ground truth weight matrix
-
-#     return activity, neuron_ttypes, np.zeros((activity.shape[0], activity.shape[0]))   ######### TODO
-
-
-
 def load_mouse_data_session(directory, date_exp, input_setting, normalization):
     gene_count = np.load(directory + date_exp + 'neuron.gene_count.npy')
     UniqueID = np.load(directory + date_exp + 'neuron.UniqueID.npy')
@@ -640,8 +578,8 @@ class Mouse_All_Sessions_Dataset(TensorDataset):
 
 
 def generate_mouse_all_sessions_data(
-    input_mouse: str,    # e.g. SB025
-    input_sessions: list,    # e.g. [2019-10-07, 2019-10-04]
+    input_mouse: list,    # e.g. [SB025, SB026]
+    input_sessions: list,    # e.g. [[2019-10-07, 2019-10-04], [2019-10-11, 2019-10-14, 2019-10-16]]
     window_size = 200, 
     batch_size = 32,
     num_workers: int = 6, 
@@ -652,8 +590,10 @@ def generate_mouse_all_sessions_data(
     
     directory = '../data/Mouse/Bugeon/'
     input_sessions_file_path = []
-    for i in range(len(input_sessions)):
-        input_sessions_file_path.append({'date_exp': input_mouse + '/' + input_sessions[i] + '/', 'input_setting': 'Blank/01/'})
+    for i in range(len(input_mouse)):
+        for j in range(len(input_sessions[i])):
+            input_sessions_file_path.append({'date_exp': input_mouse[i] + '/' + input_sessions[i][j] + '/', 'input_setting': 'Blank/01/'})
+            print(input_mouse[i] + '/' + input_sessions[i][j])
 
     # input_sessions_file_path = [
         # {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
@@ -791,8 +731,8 @@ def generate_mouse_all_sessions_data(
 ########################################################################################
 
 def generate_mouse_all_sessions_data_for_GLM(
-    input_mouse: str,    # e.g. SB025
-    input_sessions: list,    # e.g. [2019-10-07, 2019-10-04]
+    input_mouse: list,    # e.g. [SB025, SB026]
+    input_sessions: list,    # e.g. [[2019-10-07, 2019-10-04], [2019-10-11, 2019-10-14, 2019-10-16]]
     k,     # the number of tau(s) to consider, each tau corresponds to one A in GLM
     batch_size = 32,
     num_workers: int = 6, 
@@ -803,8 +743,9 @@ def generate_mouse_all_sessions_data_for_GLM(
     
     directory = '../data/Mouse/Bugeon/'
     input_sessions_file_path = []
-    for i in range(len(input_sessions)):
-        input_sessions_file_path.append({'date_exp': input_mouse + '/' + input_sessions[i] + '/', 'input_setting': 'Blank/01/'})
+    for i in range(len(input_mouse)):
+        for j in range(len(input_sessions[i])):
+            input_sessions_file_path.append({'date_exp': input_mouse[i] + '/' + input_sessions[i][j] + '/', 'input_setting': 'Blank/01/'})
 
     all_sessions_original_UniqueID = []
     all_sessions_original_cell_type = []
@@ -861,7 +802,7 @@ def generate_mouse_all_sessions_data_for_GLM(
     # cell_type_order: a list of cell types, the index corresponds to cell type id
     all_sessions_new_cell_type_id, cell_type_order = tools.assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per_session)
 
-    neuron_id_2_cell_type_id = np.zeros((num_unqiue_neurons,))
+    neuron_id_2_cell_type_id = np.zeros((num_unqiue_neurons,)).astype(int)
     for i in range(len(all_sessions_new_UniqueID)):
         neuron_id_2_cell_type_id[all_sessions_new_UniqueID[i].astype(int)] = all_sessions_new_cell_type_id[i]
 

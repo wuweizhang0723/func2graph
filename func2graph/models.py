@@ -508,6 +508,7 @@ class Attention_With_Constraint_sim(Base_3):
         l1_on_causal_temporal_map = 0,
         constraint_loss_weight = 1,
         constraint_var = 1,
+        out_layer=False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -567,7 +568,9 @@ class Attention_With_Constraint_sim(Base_3):
                 )
             )
 
-        # self.out = nn.Linear(dim_in, predict_window_size, bias=False)     ########################
+        self.out_layer = out_layer
+        if out_layer == True:
+            self.out = nn.Linear(dim_in, predict_window_size, bias=False)
 
     def forward(self, x): # x: batch_size * (neuron_num*time)
         # if self.pos_enc_type == "sin_cos":
@@ -597,8 +600,10 @@ class Attention_With_Constraint_sim(Base_3):
         #         x, attn = x
         #         attention_results.append(attn)
         
-        return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
-        # return self.out(x), attention_results[0], self.cell_type_level_constraint
+        if self.out_layer == True:
+            return self.out(x), attention_results[0], self.cell_type_level_constraint
+        else:
+            return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
 
 
 

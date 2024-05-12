@@ -14,6 +14,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from os import listdir
 from torchmetrics import AUROC
+from sklearn.metrics import r2_score
 
 from func2graph import data, models, baselines, tools
 
@@ -29,13 +30,10 @@ if __name__ == "__main__":
 
     # Data
     parser.add_argument("--neuron_num", help="the number of neurons", type=int, default=10)
-    parser.add_argument("--dt", help="dt", default=0.001)
     parser.add_argument("--tau", help="tau", default=1)
-    parser.add_argument("--spike_neuron_num", default=2)
-    parser.add_argument("--spike_input", default=5)
 
-    parser.add_argument("--weight_scale", default=0.1)
-    parser.add_argument("--init_scale", default=0.1)
+    parser.add_argument("--weight_scale", default=0.2)
+    parser.add_argument("--init_scale", default=0.2)
 
     parser.add_argument("--total_time", help="total time", default=30000)
     parser.add_argument("--data_random_seed", help="data random seed", default=42)
@@ -79,10 +77,7 @@ if __name__ == "__main__":
     # Data
 
     neuron_num = int(args.neuron_num)
-    dt = float(args.dt)
     tau = int(args.tau)
-    spike_neuron_num = int(args.spike_neuron_num)
-    spike_input = int(args.spike_input)
 
     weight_scale = float(args.weight_scale)
     init_scale = float(args.init_scale)
@@ -127,6 +122,8 @@ if __name__ == "__main__":
         + "_"
         + str(tau)
         + "_"
+        + str(window_size)
+        + "_"
         + str(predict_window_size)
         + "_"
         + str(data_type)
@@ -169,10 +166,7 @@ if __name__ == "__main__":
 
     data_result = data.generate_simulation_data(
         neuron_num=neuron_num,
-        dt=dt,
         tau=tau,
-        spike_neuron_num=spike_neuron_num,
-        spike_input=spike_input,
         weight_scale=weight_scale,
         init_scale=init_scale,
         total_time=total_time,
@@ -185,10 +179,14 @@ if __name__ == "__main__":
         data_type=data_type,
         spatial_partial_measurement=spatial_partial_measurement,
     )
-    if data_type == "wuwei" or data_type == "ziyu":
+    if data_type == "wuwei":
         # cell_type_ids records the cell type of each neuron
-        trainloader, validloader, weight_matrix, cell_type_ids, cell_type_order, cell_type_count = data_result
+        trainloader, validloader, weight_matrix, b, cell_type_ids, cell_type_order, cell_type_count = data_result
+        derivative_b = 1 - torch.tanh(b)**2
+        # weight_matrix = (derivative_b.view(-1,1) * weight_matrix).detach().numpy()
         weight_matrix = weight_matrix.detach().numpy()
+    elif data_type == "ziyu":
+        trainloader, validloader, b, weight_matrix = data_result
     elif data_type == "c_elegans":
         trainloader, validloader, weight_matrix = data_result
         weight_matrix_E = weight_matrix[0].detach().numpy()
@@ -216,7 +214,8 @@ if __name__ == "__main__":
         causal_temporal_map_diff = causal_temporal_map_diff,
         l1_on_causal_temporal_map = l1_on_causal_temporal_map,
         constraint_loss_weight = constraint_loss_weight,
-        constraint_var = constraint_var
+        constraint_var = constraint_var,
+        b = b,
     )
 
     es = EarlyStopping(monitor="VAL_sum_loss", patience=20)  ###########
@@ -232,7 +231,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=1000,
+        max_epochs=1000,   # 1000
     )
 
     trainer.fit(single_model, trainloader, validloader)
@@ -244,25 +243,16 @@ if __name__ == "__main__":
 
     train_results = trainer.predict(single_model, dataloaders=[trainloader], ckpt_path=model_checkpoint_path)
 
-    # predictions = []
-    # ground_truths = []
     attentions = []
     for i in range(len(train_results)):
         x_hat = train_results[i][0]    # batch_size * (neuron_num*time)
         x = train_results[i][1]
         attention = train_results[i][2]
-        # neuron_embedding = train_results[i][3]
         
         attention = attention.view(-1, neuron_num, neuron_num)
-
-        # predictions.append(x_hat)
-        # ground_truths.append(x)
         attentions.append(attention)
 
-    # predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
-    # ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
     attentions = torch.cat(attentions, dim=0).cpu().numpy()    # N * neuron_num * neuron_num
-
     avg_attention = np.mean(attentions, axis=0)   # neuron_num * neuron_num
     W = avg_attention
 
@@ -283,16 +273,27 @@ if __name__ == "__main__":
     predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
     ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
     pred_corr = stats.pearsonr(predictions.flatten(), ground_truths.flatten())[0]
+    R_squared = r2_score(predictions.flatten(), ground_truths.flatten())
 
     plt.scatter(predictions.flatten(), ground_truths.flatten(), s=1)
-    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7])
+    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7] + ", R^2 = " + str(R_squared)[:7])
     plt.xlabel("Predictions")
     plt.ylabel("Ground Truths")
     plt.savefig(output_path + "/pred.png")
     plt.close()
 
+    # plot the prediction and groundtruth curve for 5 neurons
+    for i in range(10):
+        plt.subplot(10, 1, i+1)
+        print("hhhh " + str(predictions[0].shape))
+        plt.plot(predictions[:100, i, 0], label="Prediction")
+        plt.plot(ground_truths[:100, i, 0], label="Ground Truth")
+    plt.legend()
+    plt.savefig(output_path + "/curve.png")
+    plt.close()
 
-    if data_type == "wuwei" or data_type == "ziyu":
+
+    if data_type == "wuwei":
 
         ############################################################# Strength connection evaluation 
 
@@ -300,25 +301,25 @@ if __name__ == "__main__":
         estimation_corr_abs = np.corrcoef(np.abs(W.flatten()), np.abs(weight_matrix).flatten())[0, 1]
 
         strength_matrix = np.zeros((4, 4))
-        strength_matrix[0, 0] = 0.3
-        strength_matrix[1, 0] = 0.59
-        strength_matrix[2, 0] = 0.88
-        strength_matrix[3, 0] = 1.89
+        strength_matrix[0, 0] = 0.11
+        strength_matrix[1, 0] = 0.27
+        strength_matrix[2, 0] = 0.1
+        strength_matrix[3, 0] = 0.45
 
-        strength_matrix[0, 1] = -0.43
-        strength_matrix[1, 1] = -0.53
-        strength_matrix[2, 1] = -0.60
-        strength_matrix[3, 1] = -0.44
+        strength_matrix[0, 1] = -0.44
+        strength_matrix[1, 1] = -0.47
+        strength_matrix[2, 1] = -0.44
+        strength_matrix[3, 1] = -0.23
 
-        strength_matrix[0, 2] = -0.31
-        strength_matrix[1, 2] = -0.43
-        strength_matrix[2, 2] = -0.43
-        strength_matrix[3, 2] = -0.79
+        strength_matrix[0, 2] = -0.16
+        strength_matrix[1, 2] = -0.18
+        strength_matrix[2, 2] = -0.19
+        strength_matrix[3, 2] = -0.17
 
-        strength_matrix[0, 3] = -0.25
-        strength_matrix[1, 3] = -0.30
-        strength_matrix[2, 3] = -0.42
-        strength_matrix[3, 3] = -0.33
+        strength_matrix[0, 3] = -0.06
+        strength_matrix[1, 3] = -0.10
+        strength_matrix[2, 3] = -0.17
+        strength_matrix[3, 3] = -0.10
 
         cell_type_id2cell_type = {0:'EC', 1:'Pvalb', 2:'Sst', 3:'Vip'}
 
@@ -395,7 +396,171 @@ if __name__ == "__main__":
         TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
         TT = TT.T
 
-        plt.imshow(TT)
+        plt.imshow(TT, cmap='bone')
+        plt.title("W_Q @ W_K^T")
+        plt.colorbar()
+        plt.savefig(output_path + "/TT.png")
+        plt.close()
+
+        # Diagonal
+        l = list()
+        for i in range(int(tau), TT.shape[0]):
+            l.append(TT[i][i-tau])
+
+        plt.scatter(range(len(l)), l, s=1)
+        plt.xlabel("Index")
+        plt.ylabel("Value")
+        plt.title("Diagonal")
+        plt.savefig(output_path + "/TT_diagonal.png")
+        plt.close()
+
+        ############################################################# attn3 term = (E @ TT @ E^T)
+
+        idx = torch.arange(neuron_num).to(trained_model.device)
+        E = trained_model.embedding_table(idx)
+        E = E.cpu().detach().numpy()
+        attn3 = E @ TT @ E.T
+
+        estimation_attn3_corr = np.corrcoef(attn3.flatten(), weight_matrix.flatten())[0, 1]
+
+        plt.imshow(attn3, cmap='RdBu_r')
+        plt.colorbar()
+        plt.xlabel("Pre")
+        plt.ylabel("Post")
+        plt.title("E@TT@ E^T" + " (corr: " + str(estimation_attn3_corr)[:6] + ")")
+        plt.savefig(output_path + "/attn3.png")
+        plt.close()
+
+        ############################################################# plot
+
+        max_abs = np.max(np.abs(KK_strength))
+        plt.imshow(KK_strength, interpolation="nearest", cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
+        plt.colorbar()
+        plt.xlabel("Pre")
+        plt.ylabel("Post")
+        plt.title("KK_strength, corr = " + str(corr_strength_KK)[:7] + ", spearman = " + str(spearman_corr_strength_KK)[:7])
+        plt.savefig(output_path + "/KK_strength.png")
+        plt.close()
+
+        np.save(output_path + "/Estimated_KK_strength.npy", KK_strength)
+
+        plt.imshow(KK_prob, interpolation="nearest", cmap='bone')
+        plt.colorbar()
+        plt.xlabel("Pre")
+        plt.ylabel("Post")
+        plt.title("KK_prob, corr = " + str(corr_prob_KK)[:7] + ", spearman = " + str(spearman_corr_prob_KK)[:7])
+        plt.savefig(output_path + "/KK_prob.png")
+        plt.close()
+
+        np.save(output_path + "/Estimated_KK_prob.npy", KK_prob)
+
+        plt.imshow(prior_KK_strength, interpolation="nearest", cmap='RdBu_r')
+        plt.colorbar()
+        plt.xlabel("Pre")
+        plt.ylabel("Post")
+        plt.title("eval_prior_KK_strength, corr = " + str(corr_strength_prior_KK)[:7] + ", spearman = " + str(spearman_corr_strength_prior_KK)[:7])
+        plt.savefig(output_path + "/prior_strength.png")
+        plt.close()
+
+        np.save(output_path + "/Estimated_prior_strength.npy", prior_KK_strength)
+
+        plt.imshow(prior_KK_prob, interpolation="nearest", cmap='bone')
+        plt.colorbar()
+        plt.xlabel("Pre")
+        plt.ylabel("Post")
+        plt.title("eval_prior_KK_prob, corr = " + str(corr_prob_prior_KK)[:7] + ", spearman = " + str(spearman_corr_prob_prior_KK)[:7])
+        plt.savefig(output_path + "/prior_prob.png")
+        plt.close()
+
+        np.save(output_path + "/Estimated_prior_prob.npy", prior_KK_prob)
+
+
+        # NN
+        max_abs = np.max(np.abs(W))
+        plt.imshow(W, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
+        plt.colorbar()
+        plt.title("W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
+        plt.savefig(output_path + "/NN_strength.png")
+        plt.close()
+
+        plt.imshow(prob_W, cmap='bone')
+        plt.colorbar()
+        plt.title("NN_prob" + " (BCE: " + str(cross_entropy.numpy())[:6] + ") " + " (AUROC: " + str(auroc_val.numpy())[:6] + ")")
+        plt.savefig(output_path + "/NN_prob.png")
+        plt.close()
+
+
+        # GT
+        plt.imshow(strength_matrix, cmap='RdBu_r')
+        plt.colorbar()
+        plt.title("GT_(cell_type_level)")
+        plt.savefig(output_path + "/GT_KK_strength.png")
+        plt.close()
+
+        plt.imshow(cutoff_matrix, cmap='bone')
+        plt.colorbar()
+        plt.title("prob_GT_(cell_type_level)")
+        plt.savefig(output_path + "/GT_KK_prob.png")
+        plt.close()
+
+        max_abs = np.max(np.abs(weight_matrix))
+        plt.imshow(weight_matrix, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
+        plt.colorbar()
+        plt.title("GT")
+        plt.savefig(output_path + "/GT_NN_strength.png")
+        plt.close()
+
+        plt.imshow(binary_GT, cmap='bone')
+        plt.colorbar()
+        plt.title("prob_GT")
+        plt.savefig(output_path + "/GT_NN_prob.png")
+        plt.close()
+
+    elif data_type == "ziyu":
+
+        trained_model = single_model.load_from_checkpoint(model_checkpoint_path)
+        trained_model.eval()
+
+        estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
+
+        # # make all nonzero elements in GT weight matrix to 1
+        # binary_GT = np.zeros(weight_matrix.shape)
+        # binary_GT[weight_matrix != 0] = 1
+        # # min max normalization
+        # prob_W = np.abs(W)
+        # prob_W = (prob_W - np.min(prob_W)) / (np.max(prob_W) - np.min(prob_W))
+
+        # cross_entropy = F.binary_cross_entropy(torch.from_numpy(prob_W).float().view(-1), torch.from_numpy(binary_GT).float().view(-1))
+        # auroc = AUROC(task="binary")
+        # auroc_val = auroc(torch.from_numpy(prob_W).float().view(-1), torch.from_numpy(binary_GT).float().view(-1))
+
+
+        W[weight_matrix == 0] = 0   #############################
+
+        plt.imshow(W)
+        plt.colorbar()
+        plt.title("W" + " (corr: " + str(estimation_corr)[:6] + ")")
+        plt.savefig(output_path + "/NN_strength.png")
+        plt.close()
+
+        # plt.imshow(prob_W, cmap='bone')
+        # plt.colorbar()
+        # plt.title("prob_W" + " (BCE: " + str(cross_entropy.numpy())[:6] + ") " + " (AUROC: " + str(auroc_val.numpy())[:6] + ")")
+        # plt.savefig(output_path + "/NN_prob.png")
+        # plt.close()
+
+        plt.imshow(weight_matrix)
+        plt.colorbar()
+        plt.title("GT")
+        plt.savefig(output_path + "/GT_NN_strength.png")
+        plt.close()
+
+        ############################################################# TT matrix evaluation
+
+        TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
+        TT = TT.T
+
+        plt.imshow(TT, cmap='bone')
         plt.title("W_Q @ W_K^T")
         plt.colorbar()
         plt.savefig(output_path + "/TT.png")
@@ -428,87 +593,4 @@ if __name__ == "__main__":
         plt.ylabel("Post")
         plt.title("E@TT@ E^T" + " (corr: " + str(estimation_attn3_corr)[:6] + ")")
         plt.savefig(output_path + "/attn3.png")
-        plt.close()
-
-        ############################################################# plot
-
-        plt.imshow(KK_strength, interpolation="nearest")
-        plt.colorbar()
-        plt.xlabel("Pre")
-        plt.ylabel("Post")
-        plt.title("KK_strength, corr = " + str(corr_strength_KK)[:7] + ", spearman = " + str(spearman_corr_strength_KK)[:7])
-        plt.savefig(output_path + "/KK_strength.png")
-        plt.close()
-
-        np.save(output_path + "/Estimated_KK_strength.npy", KK_strength)
-
-        plt.imshow(KK_prob, interpolation="nearest", cmap='bone')
-        plt.colorbar()
-        plt.xlabel("Pre")
-        plt.ylabel("Post")
-        plt.title("KK_prob, corr = " + str(corr_prob_KK)[:7] + ", spearman = " + str(spearman_corr_prob_KK)[:7])
-        plt.savefig(output_path + "/KK_prob.png")
-        plt.close()
-
-        np.save(output_path + "/Estimated_KK_prob.npy", KK_prob)
-
-        plt.imshow(prior_KK_strength, interpolation="nearest")
-        plt.colorbar()
-        plt.xlabel("Pre")
-        plt.ylabel("Post")
-        plt.title("eval_prior_KK_strength, corr = " + str(corr_strength_prior_KK)[:7] + ", spearman = " + str(spearman_corr_strength_prior_KK)[:7])
-        plt.savefig(output_path + "/prior_strength.png")
-        plt.close()
-
-        np.save(output_path + "/Estimated_prior_strength.npy", prior_KK_strength)
-
-        plt.imshow(prior_KK_prob, interpolation="nearest", cmap='bone')
-        plt.colorbar()
-        plt.xlabel("Pre")
-        plt.ylabel("Post")
-        plt.title("eval_prior_KK_prob, corr = " + str(corr_prob_prior_KK)[:7] + ", spearman = " + str(spearman_corr_prob_prior_KK)[:7])
-        plt.savefig(output_path + "/prior_prob.png")
-        plt.close()
-
-        np.save(output_path + "/Estimated_prior_prob.npy", prior_KK_prob)
-
-
-        # NN
-        plt.imshow(W)
-        plt.colorbar()
-        plt.title("W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
-        plt.savefig(output_path + "/NN_strength.png")
-        plt.close()
-
-        plt.imshow(prob_W, cmap='bone')
-        plt.colorbar()
-        plt.title("NN_prob" + " (BCE: " + str(cross_entropy.numpy())[:6] + ") " + " (AUROC: " + str(auroc_val.numpy())[:6] + ")")
-        plt.savefig(output_path + "/NN_prob.png")
-        plt.close()
-
-
-        # GT
-        plt.imshow(strength_matrix)
-        plt.colorbar()
-        plt.title("GT_(cell_type_level)")
-        plt.savefig(output_path + "/GT_KK_strength.png")
-        plt.close()
-
-        plt.imshow(cutoff_matrix, cmap='bone')
-        plt.colorbar()
-        plt.title("prob_GT_(cell_type_level)")
-        plt.savefig(output_path + "/GT_KK_prob.png")
-        plt.close()
-
-        max_abs = np.max(np.abs(weight_matrix))
-        plt.imshow(weight_matrix, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
-        plt.colorbar()
-        plt.title("GT")
-        plt.savefig(output_path + "/GT_NN_strength.png")
-        plt.close()
-
-        plt.imshow(binary_GT, cmap='bone')
-        plt.colorbar()
-        plt.title("prob_GT")
-        plt.savefig(output_path + "/GT_NN_prob.png")
         plt.close()

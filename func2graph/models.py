@@ -479,11 +479,10 @@ class Base_3(pl.LightningModule):
         return result
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        if self.hparams.task_type == "prediction":
-            x, y = batch
-            y_hat, neuron_level_attention, cell_type_level_constraint = self(x)
+        x, y = batch
+        y_hat, neuron_level_attention, cell_type_level_constraint = self(x)
 
-            return y_hat, y, neuron_level_attention, cell_type_level_constraint
+        return y_hat, y, neuron_level_attention, cell_type_level_constraint
 
 
 

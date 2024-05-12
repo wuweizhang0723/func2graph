@@ -24,12 +24,9 @@ class data_simulator(Module):
     def __init__(
         self, 
         neuron_num: int, 
-        dt=0.001, 
         tau=1,    # 1, 2, 3, 4, 5 ...
-        spike_neuron_num=2,
-        spike_input=1,
-        weight_scale = 0.1,
-        init_scale = 0.1,
+        weight_scale = 0.2,
+        init_scale = 0.2,
         error_scale = 1,
         total_time=30000,
         data_random_seed=42,
@@ -41,11 +38,7 @@ class data_simulator(Module):
         self.error_scale = error_scale
 
         self.neuron_num = neuron_num
-        self.dt = dt
         self.tau = tau
-
-        self.spike_neuron_num = spike_neuron_num
-        self.spike_input = spike_input
 
         torch.manual_seed(data_random_seed)
         np.random.seed(data_random_seed)
@@ -79,26 +72,7 @@ class data_simulator(Module):
             self.W_ij, self.cell_type_order, self.cell_type_ids, self.cell_type_count = tools.construct_weight_matrix_cell_type(neuron_num)
             self.W_ij = weight_scale * self.W_ij
 
-        self.x_t = init_scale * torch.randn(neuron_num)    # x_(t=0) initialization
-
-        self.selected_neurons = torch.randint(low=0, high=neuron_num, size=(total_time, 2))
-
     def forward(self, current_time_step):
-        # For each time step, randomly choose 2 neurons to add input=1
-        # selected = self.selected_neurons[current_time_step]
-        # I_t = torch.zeros(self.neuron_num)
-        # I_t[selected] = self.spike_input
-
-        # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * F.tanh(self.W_ij @ self.x_t + I_t) + torch.randn(self.neuron_num) 
-        # x_t_1 = (1 - self.dt/self.tau) * self.x_t - self.dt/self.tau * (self.W_ij @ F.tanh(self.x_t))
-        # x_t_1 = self.W_ij @ F.tanh(self.x_t)
-        # if self.tau == 1:
-        #     signal = F.tanh((self.W_ij @ self.x_t) + self.b)
-        #     e = torch.normal(0,1,size=(self.neuron_num,)) * self.error_scale
-        #     x_t_1 = signal + e
-        #     # x_t_1 = (self.W_ij @ self.x_t) + self.b + torch.normal(0,1,size=(self.neuron_num,))
-        #     self.x_t = x_t_1
-        # elif self.tau > 1:
         signal = F.tanh((self.W_ij @ self.activity[-int(self.tau)]) + self.b)
         e = torch.normal(0,1,size=(self.neuron_num,)) * self.error_scale
         x_t_1 = signal + e
@@ -113,10 +87,7 @@ class data_simulator(Module):
 
 def generate_simulation_data(
     neuron_num = 10,
-    dt = 0.001,
     tau = 0.025,
-    spike_neuron_num=2,
-    spike_input=1,
     weight_scale = 1,
     init_scale = 1,
     total_time = 30000,
@@ -157,10 +128,7 @@ def generate_simulation_data(
     elif data_type == "wuwei":
         simulator = data_simulator(
             neuron_num=neuron_num, 
-            dt=dt, 
             tau=tau,  
-            spike_neuron_num=spike_neuron_num, 
-            spike_input=spike_input,
             weight_scale=weight_scale,
             init_scale=init_scale,
             total_time=total_time,
@@ -667,7 +635,7 @@ def generate_mouse_all_sessions_data(
     all_sessions_new_UniqueID, num_unqiue_neurons = tools.assign_unique_neuron_ids(all_sessions_original_UniqueID, num_neurons_per_session)
     all_sessions_new_cell_type_id, cell_type_order = tools.assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per_session)
 
-    neuron_id_2_cell_type_id = np.zeros((num_unqiue_neurons,))
+    neuron_id_2_cell_type_id = np.zeros((num_unqiue_neurons,)).astype(int)
     for i in range(len(all_sessions_new_UniqueID)):
         neuron_id_2_cell_type_id[all_sessions_new_UniqueID[i].astype(int)] = all_sessions_new_cell_type_id[i]
 

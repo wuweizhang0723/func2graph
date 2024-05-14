@@ -13,6 +13,7 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from os import listdir
+from sklearn.metrics import r2_score
 
 from func2graph import data, models, baselines, tools
 
@@ -28,6 +29,9 @@ if __name__ == "__main__":
     parser.add_argument("--out_folder", help="the output folder")
 
     # Data
+
+    parser.add_argument("--input_mouse")
+    parser.add_argument("--input_sessions")
 
     parser.add_argument("--k", default=1)
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
@@ -47,6 +51,10 @@ if __name__ == "__main__":
     out_folder = args.out_folder
 
     # Data
+
+    input_mouse = args.input_mouse
+    input_sessions = [str(session) for session in args.input_sessions.split('_')]
+
     k = int(args.k)
     batch_size = int(args.batch_size)
     normalization = args.normalization
@@ -62,6 +70,10 @@ if __name__ == "__main__":
     output_path = (
         out_folder
         + model_type
+        + "_"
+        + input_mouse
+        + "_"
+        + args.input_sessions
         + "_"
         + str(k)
         + "_"
@@ -79,6 +91,8 @@ if __name__ == "__main__":
     )
 
     train_dataloader_list, val_dataloader_list, num_unqiue_neurons, cell_type_order, all_sessions_new_cell_type_id, sessions_2_original_cell_type, neuron_id_2_cell_type_id = data.generate_mouse_all_sessions_data_for_GLM(
+        input_mouse=input_mouse,
+        input_sessions=input_sessions,
         k=k, 
         batch_size=batch_size, 
         normalization=normalization
@@ -113,15 +127,16 @@ if __name__ == "__main__":
 
         all_sessions_avg_NN = []   # len is the number of sessions, each session has an avg NN matrix
 
-        for i in range(len(train_dataloader_list)):
+        for i in range(len(train_dataloader_list)):   # loop over all sessions
             checkpoint_path = output_path + "/checkpoint" + str(i)
             log_path = out_folder + "/log"
 
             train_dataloader = train_dataloader_list[i]
             val_dataloader = val_dataloader_list[i]
 
+            num_neurons = len(all_sessions_new_cell_type_id[i])
             single_model = baselines.GLM_M(
-                num_neurons=len(all_sessions_new_cell_type_id[i]),
+                num_neurons=num_neurons,
                 k=k,
                 learning_rate=learning_rate,
                 scheduler=scheduler,
@@ -178,6 +193,30 @@ if __name__ == "__main__":
             trained_model = single_model.load_from_checkpoint(model_checkpoint_path)
             trained_model.eval()
 
+            # Get validation prediction ############################################################
+            val_results = trainer.predict(single_model, dataloaders=[val_dataloader], ckpt_path=model_checkpoint_path)
+            val_results = torch.cat(val_results, dim=0).cpu().detach().numpy()
+            val_pred = val_results[:,:num_neurons]     # (num_samples, num_neurons)
+            val_target = val_results[:,num_neurons:]
+
+            corr = stats.pearsonr(val_pred.flatten(), val_target.flatten())[0]
+            R_squared = r2_score(val_pred.flatten(), val_target.flatten())
+            plt.scatter(val_pred.flatten(), val_target.flatten(), s=1)
+            plt.xlabel("Predicted")
+            plt.ylabel("Target")
+            plt.title("Validation, corr = " + str(corr)[:7] + ", R^2 = " + str(R_squared)[:7])
+            plt.savefig(checkpoint_path + "/scatter.png")
+            plt.close()
+
+            for neuron in range(10):
+                plt.subplot(10, 1, neuron+1)
+                plt.plot(val_pred[:100, neuron], label="Prediction")
+                plt.plot(val_target[:100, neuron], label="Ground Truth")
+            plt.legend()
+            plt.savefig(checkpoint_path + "/curve.png")
+            plt.close()
+
+            # Get the k NN matrix ############################################################
             NN_list = []   # should contrain k NN matrices
             KK_list = []   # should contrain k kk matrices
             for j in range(k):

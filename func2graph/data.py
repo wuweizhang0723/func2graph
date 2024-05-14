@@ -98,7 +98,7 @@ def generate_simulation_data(
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
-    task_type = "prediction",    # "reconstruction" or "prediction" or "baseline_2"
+    task_type = "prediction",    # "reconstruction" or "prediction" or "GLM_sim"
     predict_window_size = 100,
     data_type = "wuwei", #"ziyu", "c_elegans", "mouse"
     mask_size = 100,    # the number of elements to mask for each sample (each window)
@@ -221,7 +221,7 @@ def generate_simulation_data(
 
 
 
-    elif task_type == "baseline_2":  
+    elif task_type == "GLM_sim":  
         # Baseline_2 takes in activity from one previous time step to predict for the next time step
         train_x = train_data[:, :-1].transpose(0, 1)
         train_y = train_data[:, 1:].transpose(0, 1)
@@ -236,7 +236,7 @@ def generate_simulation_data(
     elif task_type == "prediction":
         train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
         val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
-    elif task_type == "baseline_2":
+    elif task_type == "GLM_sim":
         train_dataset = TensorDataset(train_x, train_y)
         val_dataset = TensorDataset(val_x, val_y)
 

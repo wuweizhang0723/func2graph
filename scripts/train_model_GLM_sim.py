@@ -42,7 +42,6 @@ if __name__ == "__main__":
     parser.add_argument("--window_size", default=200)
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
 
-    parser.add_argument("--task_type", default="prediction")  # "reconstruction" or "prediction" or "baseline_2"
     parser.add_argument("--predict_window_size", default=100)
 
     parser.add_argument("--data_type", default="wuwei")   # "ziyu"
@@ -79,7 +78,6 @@ if __name__ == "__main__":
     window_size = int(args.window_size)
     batch_size = int(args.batch_size)
 
-    task_type = args.task_type
     predict_window_size = int(args.predict_window_size)
 
     data_type = args.data_type
@@ -137,7 +135,7 @@ if __name__ == "__main__":
         weight_type=weight_type,
         window_size=window_size,
         batch_size=batch_size,
-        task_type=task_type,
+        task_type='GLM_sim',
         predict_window_size=predict_window_size,
         data_type=data_type,
         spatial_partial_measurement=spatial_partial_measurement,
@@ -160,7 +158,7 @@ if __name__ == "__main__":
         neuron_num = spatial_partial_measurement
 
     single_model = baselines.GLM_sim(
-        num_neurons=neuron_num,
+        neuron_num=neuron_num,
         learning_rate=learning_rate,
         scheduler=scheduler,
         weight_decay=weight_decay,
@@ -181,7 +179,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=1000,   # 1000
+        max_epochs=100,   # 1000
     )
 
     trainer.fit(single_model, trainloader, validloader)
@@ -201,19 +199,11 @@ if __name__ == "__main__":
     #################################################### Validation result
 
     val_results = trainer.predict(single_model, dataloaders=[validloader], ckpt_path=model_checkpoint_path)
+    val_results = torch.cat(val_results, dim=0).cpu().numpy()   # (N * (2 * neuron_num))
+    
+    predictions = val_results[:, :neuron_num]
+    ground_truths = val_results[:, neuron_num:]
 
-    predictions = []
-    ground_truths = []
-
-    for i in range(len(val_results)):
-        x_hat = val_results[i][0]    # batch_size * (neuron_num*time)
-        x = val_results[i][1]
-
-        predictions.append(x_hat)
-        ground_truths.append(x)
-
-    predictions = torch.cat(predictions, dim=0).cpu().numpy()  # N * neuron_num * window_size
-    ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
     pred_corr = stats.pearsonr(predictions.flatten(), ground_truths.flatten())[0]
     R_squared = r2_score(predictions.flatten(), ground_truths.flatten())
 
@@ -228,8 +218,8 @@ if __name__ == "__main__":
     for i in range(10):
         plt.subplot(10, 1, i+1)
         print("hhhh " + str(predictions[0].shape))
-        plt.plot(predictions[:100, i, 0], label="Prediction")
-        plt.plot(ground_truths[:100, i, 0], label="Ground Truth")
+        plt.plot(predictions[:100, i], label="Prediction")
+        plt.plot(ground_truths[:100, i], label="Ground Truth")
     plt.legend()
     plt.savefig(output_path + "/curve.png")
     plt.close()
@@ -326,6 +316,8 @@ if __name__ == "__main__":
         plt.xlabel("Pre")
         plt.ylabel("Post")
         plt.title("KK_strength, corr = " + str(corr_strength_KK)[:7] + ", spearman = " + str(spearman_corr_strength_KK)[:7])
+        plt.xticks([])
+        plt.yticks([])
         plt.savefig(output_path + "/KK_strength.png")
         plt.close()
 
@@ -347,6 +339,8 @@ if __name__ == "__main__":
         plt.imshow(W, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
         plt.colorbar()
         plt.title("W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
+        plt.xticks([])
+        plt.yticks([])
         plt.savefig(output_path + "/NN_strength.png")
         plt.close()
 

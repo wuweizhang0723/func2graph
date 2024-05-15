@@ -315,7 +315,7 @@ class Base_3(pl.LightningModule):
         return torch.cat((pred.cpu().detach(), target.cpu().detach()), dim=1)
     
 
-# x_{t+1} = \sum A_k x_{t-k}, where k is the number of tau(s)
+# x_{t+1} = Tanh( \sum A_k x_{t-k} ), Exp( \sum A_k x_{t-k} ), where k is the number of tau(s)
 class GLM_M(Base_3):
     def __init__(
         self,
@@ -325,6 +325,7 @@ class GLM_M(Base_3):
         scheduler="plateau",
         weight_decay=0,
         model_random_seed=42,
+        activation_type="tanh",   # tanh, exp
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -338,9 +339,10 @@ class GLM_M(Base_3):
             self.W_list.append(nn.Linear(num_neurons, num_neurons, bias=False))   # let's define the order is A_1, A_2, ..., A_k
 
         self.b = nn.Parameter(torch.randn(num_neurons))
-        self.activation = nn.Tanh()
 
-        self.out = nn.Linear(num_neurons, num_neurons, bias=True)
+        self.activation_type = activation_type
+        if activation_type == "tanh":
+            self.activation = nn.Tanh()
        
     def forward(self, x): # x: batch_size * (neuron_num * tau)
         for i in range(1, self.k+1):
@@ -349,5 +351,7 @@ class GLM_M(Base_3):
                 output = self.W_list[i-1](input)
             else:
                 output += self.W_list[i-1](input)
-
-        return self.out(self.activation(output + self.b))
+        if self.activation_type == "tanh":
+            return self.activation(output + self.b)
+        elif self.activation_type == "exp":
+            return torch.exp(output + self.b)

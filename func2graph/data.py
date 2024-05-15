@@ -563,26 +563,6 @@ def generate_mouse_all_sessions_data(
             input_sessions_file_path.append({'date_exp': input_mouse[i] + '/' + input_sessions[i][j] + '/', 'input_setting': 'Blank/01/'})
             print(input_mouse[i] + '/' + input_sessions[i][j])
 
-    # input_sessions_file_path = [
-        # {'date_exp': 'SB025/2019-10-07/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-04/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-08/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-09/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-23/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB025/2019-10-24/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB026/2019-10-11/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB026/2019-10-14/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB026/2019-10-16/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB028/2019-11-06/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB028/2019-11-07/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB028/2019-11-08/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB028/2019-11-12/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB028/2019-11-13/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB030/2020-01-08/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB030/2020-01-10/', 'input_setting': 'Blank/01/'},
-        # {'date_exp': 'SB030/2020-01-28/', 'input_setting': 'Blank/01/'},
-    # ]
-
     all_sessions_original_UniqueID = []
     all_sessions_original_cell_type = []
     all_sessions_acitvity_TRAIN = []   # first 80% of the time

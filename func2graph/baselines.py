@@ -347,10 +347,12 @@ class GLM_M(Base_3):
     def forward(self, x): # x: batch_size * (neuron_num * tau)
         for i in range(1, self.k+1):
             input = x[:, :, -i]
+
             if i == 1:
                 output = self.W_list[i-1](input)
             else:
                 output += self.W_list[i-1](input)
+
         if self.activation_type == "tanh":
             return self.activation(output + self.b)
         elif self.activation_type == "exp":

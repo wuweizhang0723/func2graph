@@ -685,7 +685,7 @@ def generate_mouse_all_sessions_data_for_GLM(
     batch_size = 32,
     num_workers: int = 6, 
     shuffle: bool = False,
-    normalization = 'session',
+    normalization = 'all',    # destd, all
     split_ratio = 0.8,
 ):
     
@@ -710,7 +710,7 @@ def generate_mouse_all_sessions_data_for_GLM(
         input_setting = input_sessions_file_path[i]['input_setting']
 
         activity, frame_times, UniqueID, neuron_ttypes = load_mouse_data_session(
-            directory, date_exp, input_setting, normalization='no'
+            directory, date_exp, input_setting, normalization='no'    ###################################
         )
 
         all_sessions_original_UniqueID.append(UniqueID)
@@ -736,8 +736,12 @@ def generate_mouse_all_sessions_data_for_GLM(
     mu = np.mean(all_sessions_activity_flatten)
     std = np.std(all_sessions_activity_flatten)
 
-    all_sessions_acitvity_TRAIN = [(session - mu) / std for session in all_sessions_acitvity_TRAIN]
-    all_sessions_acitvity_VAL = [(session - mu) / std for session in all_sessions_acitvity_VAL]
+    if normalization == 'all':
+        all_sessions_acitvity_TRAIN = [(session - mu) / std for session in all_sessions_acitvity_TRAIN]
+        all_sessions_acitvity_VAL = [(session - mu) / std for session in all_sessions_acitvity_VAL]
+    elif normalization == 'destd':
+        all_sessions_acitvity_TRAIN = [(session) / std for session in all_sessions_acitvity_TRAIN]
+        all_sessions_acitvity_VAL = [(session) / std for session in all_sessions_acitvity_VAL]
 
 
     ##############################################

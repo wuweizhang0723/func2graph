@@ -13,6 +13,7 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from os import listdir
+from sklearn.metrics import r2_score
 
 from func2graph import data, models, baselines, tools
 
@@ -51,7 +52,7 @@ if __name__ == "__main__":
     parser.add_argument("--dim_key", default=64)
 
     parser.add_argument("--hidden_size_2", help="hidden size 2", default=258)
-    parser.add_argument("--h_layers_2", help="h layers 2", default=2)
+    parser.add_argument("--h_layers_2", help="h layers 2", default=0)
 
     parser.add_argument("--dropout", help="dropout", default=0.2)
 
@@ -86,8 +87,10 @@ if __name__ == "__main__":
 
     # Data
 
-    input_mouse = args.input_mouse
-    input_sessions = [str(session) for session in args.input_sessions.split('_')]
+    input_mouse = [str(mouse) for mouse in args.input_mouse.split('|')]
+    input_sessions = [str(mouse) for mouse in args.input_sessions.split('|')]
+    for i in range(len(input_sessions)):
+        input_sessions[i] = input_sessions[i].split('_')
     window_size = int(args.window_size)
     predict_window_size = int(args.predict_window_size)
 
@@ -142,7 +145,7 @@ if __name__ == "__main__":
         out_folder
         + model_type
         + "_"
-        + input_mouse
+        + args.input_mouse
         + "_"
         + args.input_sessions
         + "_"
@@ -273,7 +276,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=100,
+        max_epochs=100,  # 100, 400
         gradient_clip_val=0,
     )
 
@@ -292,10 +295,10 @@ if __name__ == "__main__":
     # predictions = []
     # ground_truths = []
     attentions = []
-    attentions_3 = []
+    # attentions_3 = []
 
     all_sessions_avg_attention_NN = []
-    all_sessions_avg_attention_NN_3 = []
+    # all_sessions_avg_attention_NN_3 = []
 
     index = 0
     num_session = len(num_batch_per_session_TRAIN)
@@ -303,7 +306,7 @@ if __name__ == "__main__":
         # predictions.append([])
         # ground_truths.append([])
         attentions.append([])
-        attentions_3.append([])
+        # attentions_3.append([])
 
         for j in range(num_batch_per_session_TRAIN[i]):
             x_hat = train_results[index][0]
@@ -315,7 +318,7 @@ if __name__ == "__main__":
             attentions[i].append(attention)
 
             attention_3 = train_results[index][3]
-            attentions_3[i].append(attention_3)
+            # attentions_3[i].append(attention_3)
             
             index += 1
 
@@ -326,8 +329,8 @@ if __name__ == "__main__":
         # get average attention across samples in each session
         all_sessions_avg_attention_NN.append(np.mean(attentions[i], axis=0))   # neuron_num * neuron_num
 
-        attentions_3[i] = torch.cat(attentions_3[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
-        all_sessions_avg_attention_NN_3.append(np.mean(attentions_3[i], axis=0))   # neuron_num * neuron_num
+        # attentions_3[i] = torch.cat(attentions_3[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+        # all_sessions_avg_attention_NN_3.append(np.mean(attentions_3[i], axis=0))   # neuron_num * neuron_num
 
 
     print('hhhh: ', sessions_2_original_cell_type[0])
@@ -354,7 +357,7 @@ if __name__ == "__main__":
             predictions[i].append(x_hat)
             ground_truths[i].append(x)
             index += 1
-
+        
         predictions[i] = torch.cat(predictions[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
         ground_truths[i] = torch.cat(ground_truths[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
 
@@ -368,8 +371,21 @@ if __name__ == "__main__":
     flatten_ground_truths = np.concatenate(flatten_ground_truths)
     pred_corr = stats.pearsonr(flatten_predictions, flatten_ground_truths)[0]
 
+    R_squared = r2_score(flatten_ground_truths, flatten_predictions)
+
+    # plot the prediction and groundtruth curve for 5 neurons
+    for i in range(10):
+        plt.subplot(10, 1, i+1)
+        print("hhhh " + str(predictions[0].shape))
+        plt.plot(predictions[0][:50, i, 0], label="Prediction")
+        plt.plot(ground_truths[0][:50, i, 0], label="Ground Truth")
+    plt.legend()
+    plt.savefig(output_path + "/curve.png")
+    plt.close()
+
+
     plt.scatter(flatten_predictions, flatten_ground_truths, s=1)
-    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7])
+    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7] + ", R^2 = " + str(R_squared)[:7])
     plt.xlabel("Predictions")
     plt.ylabel("Ground Truths")
     plt.savefig(output_path + "/pred.png")
@@ -380,11 +396,17 @@ if __name__ == "__main__":
 
     multisession_NN_list = all_sessions_avg_attention_NN
 
-    multisession_NN_list_prob = []
-    for NN in multisession_NN_list:
-        NN = np.abs(NN)
-        NN = (NN - np.min(NN)) / (np.max(NN) - np.min(NN))
-        multisession_NN_list_prob.append(NN)  
+    # multisession_NN_list_prob = []
+    # for NN in multisession_NN_list:
+    #     # NN = np.abs(NN)
+    #     mean = np.mean(NN)
+    #     min_val, max_val = np.min(NN), np.max(NN)
+    #     range = max(np.abs(max_val - mean), np.abs(min_val - mean))
+    #     NN = np.abs(NN - mean) / range
+    #     # threshold = 0.5
+    #     # NN[NN < threshold] = 0
+    #     # NN[NN >= threshold] = 1
+    #     multisession_NN_list_prob.append(NN)  
 
 
     ############################################################################################################
@@ -393,12 +415,12 @@ if __name__ == "__main__":
     ### Use functions in tools.py
     ############################################################################################################
 
-    experiment_KK_prob = tools.multisession_NN_to_KK_1(
-        multisession_NN_list_prob, 
-        None,
-        cell_type_order,
-        all_sessions_new_cell_type_id,
-    )
+    # experiment_KK_prob = tools.multisession_NN_to_KK_1(
+    #     multisession_NN_list_prob, 
+    #     None,
+    #     cell_type_order,
+    #     all_sessions_new_cell_type_id,
+    # )
     experiment_KK_strength = tools.multisession_NN_to_KK_1(
         multisession_NN_list, 
         None,
@@ -408,59 +430,22 @@ if __name__ == "__main__":
 
     eval_cell_type_order = ['EC', 'Pvalb', 'Sst', 'Vip']
     # 1. inferred KK connectivity prob
-    eval_KK_prob = tools.experiment_KK_to_eval_KK(experiment_KK_prob, cell_type_order, eval_cell_type_order)
+    # eval_KK_prob = tools.experiment_KK_to_eval_KK(experiment_KK_prob, cell_type_order, eval_cell_type_order)
     # 2. inferred KK connectivity strength
     eval_KK_strength = tools.experiment_KK_to_eval_KK(experiment_KK_strength, cell_type_order, eval_cell_type_order)
     
 
     # Attention_3
-    multisession_NN_3_list = all_sessions_avg_attention_NN_3
-    experiment_KK_3_strength = tools.multisession_NN_to_KK_1(
-        multisession_NN_3_list,
-        None,
-        cell_type_order,
-        all_sessions_new_cell_type_id,
-    )
+    # multisession_NN_3_list = all_sessions_avg_attention_NN_3
+    # experiment_KK_3_strength = tools.multisession_NN_to_KK_1(
+    #     multisession_NN_3_list,
+    #     None,
+    #     cell_type_order,
+    #     all_sessions_new_cell_type_id,
+    # )
 
-    eval_KK_3_strength = tools.experiment_KK_to_eval_KK(experiment_KK_3_strength, cell_type_order, eval_cell_type_order)
+    # eval_KK_3_strength = tools.experiment_KK_to_eval_KK(experiment_KK_3_strength, cell_type_order, eval_cell_type_order)
 
-    # For each session's avg attention, convert from n*n to k*k attention
-    # different sessions may contain slightly different cell types, so k would be different
-    # all_sessions_k_k_avg_attention = []
-    # all_sessions_cell_type2cell_type_index = []
-    # for i in range(len(all_sessions_avg_attention)):
-    #     connectivity_matrix_new, cell_type_id2cell_type, cell_type2cell_type_index, cell_type_count = tools.group_connectivity_matrix_by_cell_type(all_sessions_avg_attention[i], sessions_2_original_cell_type[i])
-    #     connectivity_matrix_cell_type_level = tools.calculate_cell_type_level_connectivity_matrix(connectivity_matrix_new, cell_type_id2cell_type, cell_type_count)
-    #     all_sessions_k_k_avg_attention.append(connectivity_matrix_cell_type_level)
-    #     all_sessions_cell_type2cell_type_index.append(cell_type2cell_type_index)
-
-    # corrected_k_k_non_zero_count = np.zeros((8,8))
-    # corrected_all_sessions_k_k_avg_attention = []    ##### This is what we want !!!!!!!!!!!!
-    # correct_cell_type2id = {'EC': 0, 'IN': 1, 'Lamp5': 2, 'Pvalb': 3, 'Serpinf1': 4, 'Sncg': 5, 'Sst': 6, 'Vip': 7}
-    # correct_id2cell_type = {v: k for k, v in correct_cell_type2id.items()}
-
-    # print(all_sessions_cell_type2cell_type_index)
-
-    # for i in range(len(all_sessions_k_k_avg_attention)):
-    #     corrected_k_k = np.zeros((8,8))
-    #     for j in range(8):
-    #         cell_name_j = correct_id2cell_type[j]
-    #         if cell_name_j not in all_sessions_cell_type2cell_type_index[i]:
-    #             continue
-    #         for k in range(8):
-    #             cell_name_k = correct_id2cell_type[k]
-    #             if cell_name_k not in all_sessions_cell_type2cell_type_index[i]:
-    #                 continue
-    #             corrected_k_k[j][k] = all_sessions_k_k_avg_attention[i][all_sessions_cell_type2cell_type_index[i][cell_name_j]][all_sessions_cell_type2cell_type_index[i][cell_name_k]]
-    #             corrected_k_k[k][j] = all_sessions_k_k_avg_attention[i][all_sessions_cell_type2cell_type_index[i][cell_name_k]][all_sessions_cell_type2cell_type_index[i][cell_name_j]]
-    #             corrected_k_k_non_zero_count[j][k] += 1
-    #             corrected_k_k_non_zero_count[k][j] += 1
-
-    #     corrected_all_sessions_k_k_avg_attention.append(corrected_k_k)
-
-    # FINAL_k_k_avg_attention = np.array(corrected_all_sessions_k_k_avg_attention).sum(axis=0)   # 8 * 8
-    # print(corrected_k_k_non_zero_count)
-    # FINAL_k_k_avg_attention = FINAL_k_k_avg_attention / corrected_k_k_non_zero_count
 
     
     ### k*k prior
@@ -468,39 +453,24 @@ if __name__ == "__main__":
     trained_model = single_model.load_from_checkpoint(model_checkpoint_path)
     trained_model.eval()
 
-    experiment_prior_KK_strength = trained_model.cell_type_level_constraint.cpu().detach().numpy()
+    experiment_prior_KK_strength = trained_model.cell_type_level_constraint.clone().detach().cpu().numpy()
     experiment_prior_KK_prob = np.abs(experiment_prior_KK_strength)
     experiment_prior_KK_prob = (experiment_prior_KK_prob - np.min(experiment_prior_KK_prob)) / (np.max(experiment_prior_KK_prob) - np.min(experiment_prior_KK_prob))
+
+    experiment_prior_KK_var = trained_model.cell_type_level_var.clone().detach().cpu().numpy()
+    experiment_prior_KK_var = experiment_prior_KK_var ** 2
 
     # 3. inferred prior KK connectivity prob
     eval_prior_KK_prob = tools.experiment_KK_to_eval_KK(experiment_prior_KK_prob, cell_type_order, eval_cell_type_order)
     # 4. inferred prior KK connectivity strength
     eval_prior_KK_strength = tools.experiment_KK_to_eval_KK(experiment_prior_KK_strength, cell_type_order, eval_cell_type_order)
 
+    eval_prior_KK_var = tools.experiment_KK_to_eval_KK(experiment_prior_KK_var, cell_type_order, eval_cell_type_order)
+
 
     # Make the ground truth connectivity matrix ----------------------------------------------------------
     GT_strength_connectivity = np.zeros((len(eval_cell_type_order), len(eval_cell_type_order)))
     GT_strength_connectivity[:] = np.nan
-
-    # ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['EC']] = 0.3
-    # ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['EC']] = 0.59
-    # ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['EC']]= 0.88
-    # ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['EC']] = 1.89
-
-    # ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Pvalb']] = -0.43
-    # ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Pvalb']] = -0.53
-    # ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Pvalb']] = -0.60
-    # ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Pvalb']] = -0.44
-
-    # ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Sst']] = -0.31
-    # ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Sst']] = -0.43
-    # ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Sst']] = -0.43
-    # ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Sst']] = -0.79
-
-    # ground_truth_connectivity[correct_cell_type2id['EC']][correct_cell_type2id['Vip']] = -0.25
-    # ground_truth_connectivity[correct_cell_type2id['Pvalb']][correct_cell_type2id['Vip']] = -0.30
-    # ground_truth_connectivity[correct_cell_type2id['Sst']][correct_cell_type2id['Vip']] = -0.42
-    # ground_truth_connectivity[correct_cell_type2id['Vip']][correct_cell_type2id['Vip']] = -0.33
 
     GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('EC')] = 0.11
     GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('EC')] = 0.27
@@ -550,25 +520,25 @@ if __name__ == "__main__":
     corr_strength_KK = stats.pearsonr(GT_strength_connectivity.flatten(), eval_KK_strength.flatten())[0]
     spearman_corr_strength_KK = stats.spearmanr(GT_strength_connectivity.flatten(), eval_KK_strength.flatten())[0]
 
-    corr_prob_KK = stats.pearsonr(GT_prob_connectivity.flatten(), eval_KK_prob.flatten())[0]
-    spearman_corr_prob_KK = stats.spearmanr(GT_prob_connectivity.flatten(), eval_KK_prob.flatten())[0]
+    # corr_prob_KK = stats.pearsonr(GT_prob_connectivity.flatten(), eval_KK_prob.flatten())[0]
+    # spearman_corr_prob_KK = stats.spearmanr(GT_prob_connectivity.flatten(), eval_KK_prob.flatten())[0]
 
     corr_strength_prior_KK = stats.pearsonr(GT_strength_connectivity.flatten(), eval_prior_KK_strength.flatten())[0]
     spearman_corr_strength_prior_KK = stats.spearmanr(GT_strength_connectivity.flatten(), eval_prior_KK_strength.flatten())[0]
 
-    corr_prob_prior_KK = stats.pearsonr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
-    spearman_corr_prob_prior_KK = stats.spearmanr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
+    # corr_prob_prior_KK = stats.pearsonr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
+    # spearman_corr_prob_prior_KK = stats.spearmanr(GT_prob_connectivity.flatten(), eval_prior_KK_prob.flatten())[0]
 
 
-    corr_strength_KK_3 = stats.pearsonr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
-    spearman_corr_strength_KK_3 = stats.spearmanr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
+    # corr_strength_KK_3 = stats.pearsonr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
+    # spearman_corr_strength_KK_3 = stats.spearmanr(GT_strength_connectivity.flatten(), eval_KK_3_strength.flatten())[0]
 
 
     ############################################################# TT matrix evaluation
     TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
     TT = TT.T
 
-    plt.imshow(TT)
+    plt.imshow(TT, cmap='bone', interpolation="nearest")
     plt.title("W_Q @ W_K^T")
     plt.colorbar()
     plt.savefig(output_path + "/TT.png")
@@ -577,7 +547,19 @@ if __name__ == "__main__":
     np.save(output_path + "/TT.npy", TT)
 
     ############################################################ plot
-    plt.imshow(eval_KK_strength, interpolation="nearest")
+    plt.imshow(eval_prior_KK_var, interpolation="nearest")
+    plt.colorbar()
+    plt.xlabel("Pre")
+    plt.ylabel("Post")
+    plt.title("eval_prior_KK_var")
+    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    plt.savefig(output_path + "/prior_var.png")
+    plt.close()
+
+    np.save(output_path + "/Estimated_prior_var.npy", eval_prior_KK_var)
+
+    plt.imshow(eval_KK_strength, cmap='RdBu_r', interpolation="nearest")
     plt.colorbar()
     plt.xlabel("Pre")
     plt.ylabel("Post")
@@ -590,20 +572,20 @@ if __name__ == "__main__":
     np.save(output_path + "/Estimated_strength.npy", eval_KK_strength)
 
     # plot
-    plt.imshow(eval_KK_prob, interpolation="nearest", cmap='bone')
-    plt.colorbar()
-    plt.xlabel("Pre")
-    plt.ylabel("Post")
-    plt.title("eval_KK_prob, corr = " + str(corr_prob_KK)[:7] + ", spearman = " + str(spearman_corr_prob_KK)[:7])
-    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
-    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
-    plt.savefig(output_path + "/prob.png")
-    plt.close()
+    # plt.imshow(eval_KK_prob, interpolation="nearest", cmap='bone')
+    # plt.colorbar()
+    # plt.xlabel("Pre")
+    # plt.ylabel("Post")
+    # plt.title("eval_KK_prob, corr = " + str(corr_prob_KK)[:7] + ", spearman = " + str(spearman_corr_prob_KK)[:7])
+    # plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    # plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    # plt.savefig(output_path + "/prob.png")
+    # plt.close()
 
-    np.save(output_path + "/Estimated_prob.npy", eval_KK_prob)
+    # np.save(output_path + "/Estimated_prob.npy", eval_KK_prob)
 
     # plot
-    plt.imshow(eval_prior_KK_strength, interpolation="nearest")
+    plt.imshow(eval_prior_KK_strength, cmap='RdBu_r', interpolation="nearest")
     plt.colorbar()
     plt.xlabel("Pre")
     plt.ylabel("Post")
@@ -616,18 +598,18 @@ if __name__ == "__main__":
     np.save(output_path + "/Estimated_prior_strength.npy", eval_prior_KK_strength)
 
     # plot
-    plt.imshow(eval_prior_KK_prob, interpolation="nearest", cmap='bone')
-    plt.colorbar()
-    plt.xlabel("Pre")
-    plt.ylabel("Post")
-    plt.title("eval_prior_KK_prob, corr = " + str(corr_prob_prior_KK)[:7] + ", spearman = " + str(spearman_corr_prob_prior_KK)[:7])
-    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
-    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
-    plt.savefig(output_path + "/prior_prob.png")
-    plt.close()
+    # plt.imshow(eval_prior_KK_prob, interpolation="nearest", cmap='bone')
+    # plt.colorbar()
+    # plt.xlabel("Pre")
+    # plt.ylabel("Post")
+    # plt.title("eval_prior_KK_prob, corr = " + str(corr_prob_prior_KK)[:7] + ", spearman = " + str(spearman_corr_prob_prior_KK)[:7])
+    # plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    # plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    # plt.savefig(output_path + "/prior_prob.png")
+    # plt.close()
 
     # plot ground truth
-    plt.imshow(GT_strength_connectivity, interpolation="nearest")
+    plt.imshow(GT_strength_connectivity, cmap='RdBu_r', interpolation="nearest")
     plt.colorbar()
     plt.xlabel("Pre")
     plt.ylabel("Post")
@@ -649,12 +631,12 @@ if __name__ == "__main__":
 
 
     ############## Attention KK 3
-    plt.imshow(eval_KK_3_strength, interpolation="nearest")
-    plt.colorbar()
-    plt.xlabel("Pre")
-    plt.ylabel("Post")
-    plt.title("eval_KK_3_strength, corr = " + str(corr_strength_KK_3)[:7] + ", spearman = " + str(spearman_corr_strength_KK_3)[:7])
-    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
-    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
-    plt.savefig(output_path + "/strength_3.png")
-    plt.close()
+    # plt.imshow(eval_KK_3_strength, cmap='RdBu_r', interpolation="nearest")
+    # plt.colorbar()
+    # plt.xlabel("Pre")
+    # plt.ylabel("Post")
+    # plt.title("eval_KK_3_strength, corr = " + str(corr_strength_KK_3)[:7] + ", spearman = " + str(spearman_corr_strength_KK_3)[:7])
+    # plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    # plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    # plt.savefig(output_path + "/strength_3.png")
+    # plt.close()

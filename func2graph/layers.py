@@ -263,7 +263,14 @@ class Causal_Temporal_Map_Attention(nn.Module):
         # x_ = x_ * self.scale
 
         logits = einsum("b n t, b m t -> b n m", x_e_, x_e)
-        attn0 = logits
+        if self.activation == 'softmax':
+            attn0 = logits.softmax(dim=-1)
+        elif self.activation == 'sigmoid':
+            attn0 = F.sigmoid(logits)
+        elif self.activation == 'tanh':
+            attn0 = F.tanh(logits)
+        elif self.activation == 'none':
+            attn0 = logits
 
         attn = self.attn_dropout(attn0)
 

@@ -98,11 +98,9 @@ def generate_simulation_data(
     num_workers: int = 6, 
     shuffle: bool = False,
     split_ratio = 0.8,
-    task_type = "prediction",    # "reconstruction" or "prediction" or "GLM_sim"
+    task_type = "prediction",    # "reconstruction" or "prediction" or "GLM_sim_exp" or "GLM_sim_tanh"
     predict_window_size = 100,
     data_type = "wuwei", #"ziyu", "c_elegans", "mouse"
-    mask_size = 100,    # the number of elements to mask for each sample (each window)
-    normalization = "session",   # "neuron" or "session" or "none" or "log"
     spatial_partial_measurement = 200,  # the number of neurons to measured, between 0 and neuron_num
 ) -> DataLoader:
     """
@@ -221,13 +219,39 @@ def generate_simulation_data(
 
 
 
-    elif task_type == "GLM_sim":  
+    elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh"):  
         # Baseline_2 takes in activity from one previous time step to predict for the next time step
         train_x = train_data[:, :-1].transpose(0, 1)
         train_y = train_data[:, 1:].transpose(0, 1)
 
         val_x = val_data[:, :-1].transpose(0, 1)
         val_y = val_data[:, 1:].transpose(0, 1)
+
+        if task_type == "GLM_sim_exp":    
+            # find the min value and if it is negative, add abs(min val)
+            min_val = torch.min(data)
+            print('min_val: ', min_val)
+
+            print(torch.min(train_x), torch.min(train_y), torch.min(val_x), torch.min(val_y))
+
+            print('abs min_val: ', torch.abs(min_val))
+
+            if min_val < 0:
+                train_x = torch.abs(min_val) + train_x
+                train_y = torch.abs(min_val) + train_y
+                val_x = torch.abs(min_val) + val_x
+                val_y = torch.abs(min_val) + val_y
+
+                # destd
+                # std = torch.std(data)
+                # train_x /= std
+                # train_y /= std
+                # val_x /= std
+                # val_y /= std
+            
+            print('min_val_now: ', torch.min(train_x), torch.min(train_y), torch.min(val_x), torch.min(val_y))
+            print('max_val_now: ', torch.max(train_x), torch.max(train_y), torch.max(val_x), torch.max(val_y))
+            
 
 
     if task_type == "reconstruction":
@@ -236,7 +260,7 @@ def generate_simulation_data(
     elif task_type == "prediction":
         train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
         val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
-    elif task_type == "GLM_sim":
+    elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh"):
         train_dataset = TensorDataset(train_x, train_y)
         val_dataset = TensorDataset(val_x, val_y)
 

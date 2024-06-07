@@ -204,7 +204,7 @@ class Causal_Temporal_Map_Attention(nn.Module):
     ):
         super().__init__()
         self.activation = activation
-        # self.scale = dim ** -0.5
+        self.scale = dim ** -0.5
 
         if derivative_b is None:
             self.derivative_b = 1
@@ -255,12 +255,12 @@ class Causal_Temporal_Map_Attention(nn.Module):
         x_e = x + e
         x_e = self.layer_norm(x_e)
 
-        v = x_e.clone()  # identity mapping
-        # v = x.clone()  # identity mapping ###############################
+        v = x_e.clone()  # V = X + E ###############################
+        # v = x.clone()  # V = X ###################################
 
         x_e_ = self.W_Q_W_KT(x_e)  # (b, n, t)
 
-        # x_ = x_ * self.scale
+        x_e_ = x_e_ * self.scale
 
         logits = einsum("b n t, b m t -> b n m", x_e_, x_e)
         if self.activation == 'softmax':

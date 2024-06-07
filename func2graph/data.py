@@ -150,6 +150,7 @@ def generate_simulation_data(
 
         train_data_size = 1000  ########################
 
+    ############################################################ Partial Observation
     if spatial_partial_measurement != neuron_num:
         # choose a subset of neurons to measure, without replacement
         idx = torch.randperm(neuron_num)[:spatial_partial_measurement]
@@ -282,17 +283,21 @@ def generate_simulation_data(
                 for j in range(spatial_partial_measurement):
                     new_W_ij[i][j] = simulator.W_ij[idx[i]][idx[j]]
 
+            new_b = torch.zeros((spatial_partial_measurement,))
+            for i in range(spatial_partial_measurement):
+                new_b[i] = simulator.b[idx[i]]
+
             new_cell_type_ids = []
             for i in range(spatial_partial_measurement):
                 new_cell_type_ids.append(simulator.cell_type_ids[idx[i]])
 
-            id2cell_type = {0:'EC', 1:'Pv', 2:'Sst', 3:'Vip'}
-            new_cell_type_count = {'EC':0, 'Pv':0, 'Sst':0, 'Vip':0}
+            id2cell_type = {0:'EC', 1:'Pvalb', 2:'Sst', 3:'Vip'}
+            new_cell_type_count = {'EC':0, 'Pvalb':0, 'Sst':0, 'Vip':0}
             for i in range(spatial_partial_measurement):
                 cell_type = id2cell_type[new_cell_type_ids[i]]
                 new_cell_type_count[cell_type] += 1
 
-            return train_dataloader, val_dataloader, new_W_ij, new_cell_type_ids, simulator.cell_type_order, new_cell_type_count
+            return train_dataloader, val_dataloader, new_W_ij, new_b, new_cell_type_ids, simulator.cell_type_order, new_cell_type_count
     
 
 

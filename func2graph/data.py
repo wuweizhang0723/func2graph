@@ -108,20 +108,17 @@ def generate_simulation_data(
     Return dataloaders and ground truth weight matrix.
     """
 
-    # Simulate 10 neuron data for 30,000 time steps
-
-    # torch.manual_seed(data_random_seed)
-
     if data_type == "ziyu":
-        v_normed_alltimes = pd.read_csv('../data/Ziyu/200/v_normed_alltimes.txt', header=None, sep=',')
-        v_normed_alltimes = v_normed_alltimes.to_numpy()
+        v = np.load('../data/Ziyu/200_bio_sim/sim_voltage.npy')
+        # Clip to 30 and normalize the data for each neuron
+        v[v > 30] = 30
+        v_normed_alltimes = (v - np.mean(v, axis=1, keepdims=True)) / np.std(v, axis=1, keepdims=True)
 
         total_time = v_normed_alltimes.shape[1]
         neuron_num = v_normed_alltimes.shape[0]
         data = torch.from_numpy(v_normed_alltimes).float()
 
-        W = pd.read_csv('../data/Ziyu/200/connectivity.txt', header=None, sep=',')
-        W = W.to_numpy()
+        W = np.load('../data/Mouse_Local_Connectivity/GT_NN_sim_connectivity.npy')
 
     elif data_type == "wuwei":
         simulator = data_simulator(
@@ -180,7 +177,7 @@ def generate_simulation_data(
     train_data = data[:, :train_data_length]
     val_data = data[:, train_data_length:]
 
-    if (task_type == "reconstruction") or (task_type == "prediction"):
+    if (task_type == "prediction"):
         val_data_size = val_data.shape[1] - window_size + 1
         val_start_indices = torch.arange(val_data_size)
 
@@ -197,14 +194,6 @@ def generate_simulation_data(
         print("val_data.shape: ", val_data.shape)
         print(val_data[-1])
 
-        # train_start_indices = torch.randint(low=0, high=train_data_length-window_size+1, size=(train_data_size,))
-        # train_datar_result = []
-        # for i in range(train_data_size):
-        #     index = train_start_indices[i]
-        #     sample = train_data[:, index:index+window_size]
-        #     train_datar_result.append(sample.view(1, neuron_num, window_size))
-        # train_data = torch.cat(train_datar_result, dim=0)
-
         train_data_size = train_data_length - window_size + 1
         train_start_indices = torch.arange(train_data_size)
 
@@ -217,8 +206,6 @@ def generate_simulation_data(
             else:
                 train_data_result.append(sample.view(1, neuron_num, window_size))
         train_data = torch.cat(train_data_result, dim=0)
-
-
 
     elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh"):  
         # Baseline_2 takes in activity from one previous time step to predict for the next time step
@@ -254,11 +241,7 @@ def generate_simulation_data(
             print('max_val_now: ', torch.max(train_x), torch.max(train_y), torch.max(val_x), torch.max(val_y))
             
 
-
-    if task_type == "reconstruction":
-        train_dataset = TensorDataset(train_data)
-        val_dataset = TensorDataset(val_data)
-    elif task_type == "prediction":
+    if task_type == "prediction":
         train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
         val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
     elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh"):

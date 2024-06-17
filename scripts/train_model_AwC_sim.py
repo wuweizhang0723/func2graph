@@ -5,7 +5,6 @@ from scipy import stats
 import argparse
 import torch
 import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader, random_split
 import pytorch_lightning as pl
 from pytorch_lightning import loggers
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -52,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_random_seed", default=42)
 
     parser.add_argument("--attention_layers", help="attention layers", default=1)
-    parser.add_argument("--attention_activation", default="softmax")    # "softmax" or "sigmoid" or "tanh" or "none"
+    parser.add_argument("--attention_activation", default="none")    # "softmax" or "sigmoid" or "tanh" or "none"
     parser.add_argument("--pos_enc_type", default="lookup_table")
 
     parser.add_argument("--causal_temporal_map", default='none')   # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
@@ -60,7 +59,7 @@ if __name__ == "__main__":
     parser.add_argument("--l1_on_causal_temporal_map", default=0)   # alpha penalty
 
     parser.add_argument("--learning_rate", help="learning rate", default=1e-4)
-    parser.add_argument("--scheduler", default="plateau")    # "none" or "plateau"
+    parser.add_argument("--scheduler", default="plateau")    # "none" or "plateau" or "cycle"
 
     parser.add_argument("--loss_function", default="mse")   # "mse" or "poisson" or "gaussian"
     parser.add_argument("--weight_decay", default=0)
@@ -281,9 +280,10 @@ if __name__ == "__main__":
     ground_truths = torch.cat(ground_truths, dim=0).cpu().numpy()  # N * neuron_num * window_size
     pred_corr = stats.pearsonr(predictions.flatten(), ground_truths.flatten())[0]
     R_squared = r2_score(ground_truths.flatten(), predictions.flatten())
+    MSE = np.mean((predictions.flatten() - ground_truths.flatten())**2)
 
     plt.scatter(predictions.flatten(), ground_truths.flatten(), s=1)
-    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7] + ", R^2 = " + str(R_squared)[:7])
+    plt.title("val_corr = " + str(pred_corr)[:7] + ", R^2 = " + str(R_squared)[:7] + ", MSE = " + str(MSE)[:7])
     plt.xlabel("Predictions")
     plt.ylabel("Ground Truths")
     plt.savefig(output_path + "/pred.png")
@@ -304,8 +304,8 @@ if __name__ == "__main__":
 
         ############################################################# Strength connection evaluation 
 
-        estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
-        estimation_spearman_corr = stats.spearmanr(W.flatten(), weight_matrix.flatten())[0]
+        corr_strength_NN = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
+        spearman_corr_strength_NN = stats.spearmanr(W.flatten(), weight_matrix.flatten())[0]
 
         strength_matrix = np.zeros((4, 4))
         strength_matrix[0, 0] = 0.11
@@ -421,7 +421,7 @@ if __name__ == "__main__":
         plt.savefig(output_path + "/TT_diagonal.png")
         plt.close()
 
-        np.savs(output_path + "/TT.npy", TT)
+        np.save(output_path + "/TT.npy", TT)
 
         ############################################################# attn3 term = (E @ TT @ E^T)
 
@@ -484,7 +484,7 @@ if __name__ == "__main__":
         max_abs = np.max(np.abs(W))
         plt.imshow(W, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
         plt.colorbar()
-        plt.title("W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (spearman: " + str(estimation_spearman_corr)[:6] + ")")
+        plt.title("W" + " (corr: " + str(corr_strength_NN)[:6] + ") " + " (spearman: " + str(spearman_corr_strength_NN)[:6] + ")")
         plt.savefig(output_path + "/NN_strength.png")
         plt.close()
 

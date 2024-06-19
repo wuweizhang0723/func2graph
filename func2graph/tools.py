@@ -7,11 +7,64 @@ import pytorch_lightning as pl
 from scipy import stats, signal
 
 
+def R_squared_w_trainMean(T_N_matrix, T_N_matrix_hat, train_mean):
+    """
+    T_N_matrix: T * N matrix
+    T_N_matrix_hat: T * N matrix
+    train_mean: N * 1 matrix
+
+    compute R^2 for each neuron, and then average them
+    """
+    T, N = T_N_matrix.shape
+    R_squared = []
+    for i in range(N):
+        numerator = np.sum((T_N_matrix[:, i] - T_N_matrix_hat[:, i])**2)
+        denominator = np.sum((T_N_matrix[:, i] - train_mean[i])**2)
+        R_squared.append(1 - numerator / denominator)
+    return R_squared
+
+def flattened_R_squared_w_trainMean(vector, vector_hat, flattened_train_mean):
+    """
+    matrix: (T * N, 1) vector
+    matrix_hat: (T * N, 1) vector
+    train_mean: scalar
+
+    compute R^2 for flattened (T * N, 1) vector
+    """
+    numerator = np.sum((vector - vector_hat)**2)
+    denominator = np.sum((vector - flattened_train_mean)**2)
+    R_squared = 1 - numerator / denominator
+    return R_squared
+    
+
+def linear_transform(matrix, GT):
+    flatten_matrix = matrix.flatten()
+    flatten_GT = GT.flatten()
+
+    # linear regression
+    slope, intercept, r_value, p_value, std_err = stats.linregress(flatten_matrix, flatten_GT)
+    # linear transform
+    result = matrix * slope + intercept
+    return result
+
+# Make matrix to -1 to 1
+def normalize_matrix(matrix):
+    min_val = np.min(matrix)
+    max_val = np.max(matrix)
+    print('min:', min_val, 'max:', max_val)
+
+    matrix = 2 * (matrix - min_val) / (max_val - min_val) - 1
+    print('min:', np.min(matrix), 'max:', np.max(matrix))
+    return matrix
+
+########################################################################################
+
+
+
 
 # Implement two ways to look for weight matrix after training is done
 # 1) take average of all N attention outputs as weight matrix
 # 2) uses sliding windows so that we can visualize if the attention output is smoothly and continuously changed
-
 
 def get_avg_attention(dataloader, predict_mode_model, checkpoint_path, neuron_num=10):
     trainer = pl.Trainer(
@@ -53,7 +106,7 @@ def get_avg_attention(dataloader, predict_mode_model, checkpoint_path, neuron_nu
 #
 def construct_weight_matrix_cell_type(neuron_num):
     cell_type_order = ['EC', 'Pvalb', 'Sst', 'Vip']
-    # Let the first 76% neurons be EC, 8% neurons be Pv, 8% neurons be Sst, 8% neurons be Vip
+    # Let the first 76% neurons be EC, 8% neurons be Pvalb, 8% neurons be Sst, 8% neurons be Vip   ####################
     cell_type_ids = np.zeros(neuron_num, dtype=int)
     cell_type_ids[:int(neuron_num*0.76)] = 0
     cell_type_ids[int(neuron_num*0.76):int(neuron_num*0.84)] = 1
@@ -406,7 +459,7 @@ def multisession_NN_to_KK_1(
     (multisession_binary_NN_list == none) should be used.
     - cell_type_order: a list of cell type order
     This should contain all cell types that are in the data. (a union of all cell types from all sessions)
-    The order should be decided when processing the data. E.g. ['EC', 'Pv', 'Sst', 'Vip']
+    The order should be decided when processing the data. E.g. ['EC', 'Pvalb', 'Sst', 'Vip']
     - multisession_cell_type_id_list: a list of cell type ids from multiple sessions
 
     Return:
@@ -464,7 +517,7 @@ def multisession_NN_to_KK_2(
     (multisession_binary_NN_list == none) should be used.
     - cell_type_order: a list of cell type order
     This should contain all cell types that are in the data. (a union of all cell types from all sessions)
-    The order should be decided when processing the data. E.g. ['EC', 'Pv', 'Sst', 'Vip']
+    The order should be decided when processing the data. E.g. ['EC', 'Pvalb', 'Sst', 'Vip']
     - multisession_cell_type_id_list: a list of cell type ids from multiple sessions
 
     Return:

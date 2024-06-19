@@ -288,7 +288,7 @@ def assign_unique_neuron_ids(all_sessions_original_UniqueID, num_neurons_per_ses
 
     num_unique_neurons = num_unique_non_nan + num_nan
 
-    return all_sessions_new_UniqueID, num_unique_neurons    # shape: num_sessions x num_neurons_per_session
+    return all_sessions_new_UniqueID, num_unique_neurons    # shape: (num_sessions, num_neurons_per_session)
 
 
 

@@ -254,80 +254,27 @@ def load_mouse_data_session(directory, date_exp, input_setting, normalization):
     frame_times = np.load(directory + date_exp + input_setting + 'frame.times.npy')
     frame_activity = np.load(directory + date_exp + input_setting + 'frame.neuralActivity.npy')
 
-    # eye_size = np.load(directory + date_exp + input_setting + 'eye.size.npy')
-    # eye_times = np.load(directory + date_exp + input_setting + 'eye.times.npy')
-
-    # if np.isnan(np.mean(eye_size)):
-    #     eye_size = interpolate_nans(eye_size[:,0])[:,np.newaxis]
-
-    # times = frame_times.shape[0]
-    # eye_times_list = list(eye_times[:,0])
-    # eye_size_resize = np.zeros((times, 1))
-    # for t in range(times):
-    #     index = bisect(eye_times_list, frame_times[t,0])
-    #     if t == times - 1:
-    #         eye_size_resize[t] = eye_size[index - 1, 0]
-    #     else:
-    #         eye_size_resize[t] = (eye_size[index - 1, 0] + eye_size[index, 0])/2
-
-    # running_speed = np.load(directory + date_exp + input_setting + 'running.speed.npy')
-    # running_times = np.load(directory + date_exp + input_setting + 'running.times.npy')
-
-    # if np.isnan(np.mean(running_speed)):
-    #     running_speed = interpolate_nans(running_speed[:,0])[:,np.newaxis]
-
-    # running_times_list = list(running_times[:,0])
-    # running_speed_resize = np.zeros((times, 1))
-    # for t in range(times):
-    #     index = bisect(running_times_list, frame_times[t,0])
-    #     if t == times - 1:
-    #         running_speed_resize[t] = running_speed[index - 1, 0]
-    #     else:
-    #         running_speed_resize[t] = (running_speed[index - 1, 0] + running_speed[index, 0])/2
-
-
     # normalization
     if normalization == 'session':
         activity_mean = np.mean(frame_activity)
         activity_std = np.std(frame_activity)
-
         activity_norm = (frame_activity - activity_mean)/activity_std
+
     elif normalization == 'destd_session':
         activity_std = np.std(frame_activity)
-
         activity_norm = (frame_activity) / activity_std
+
     elif normalization == 'neuron':
         activity_mean = np.mean(frame_activity, axis = 0)
         activity_std = np.std(frame_activity, axis = 0)
-
         activity_norm = (frame_activity - activity_mean)/activity_std
-    elif normalization == 'log':
-        activity_norm = np.log10(frame_activity + 1)
-    else:
-        print('no normalization')
 
+    elif normalization == 'no':
+        print('no normalization')
         activity_norm = frame_activity
 
-    # if behavior_normalization:
-    #     running_speed_resize = (running_speed_resize - np.mean(running_speed_resize, axis = 0))/np.std(running_speed_resize, axis = 0)
-    #     eye_size_resize = (eye_size_resize - np.mean(eye_size_resize, axis = 0))/np.std(eye_size_resize, axis = 0)
-
-    # activity population
-    # activity_population = {
-    #     'running_speed': running_speed_resize,
-    #     'eye_size': eye_size_resize,
-    #     'frame_states': frame_states,
-    #     'mean_activity': np.mean(activity_norm, axis = 1, keepdims = True),
-    #     'std_activity': np.std(activity_norm, axis = 1, keepdims = True),
-    #     }
-
-    # x, y coordinate position of neurons
-    # neuron_pos = np.load(directory + date_exp +'neuron.stackPosCorrected.npy')
-    # print('neuron_pos.shape:', neuron_pos.shape)
-    # plt.figure(figsize=(4,4))
-    # plt.plot(neuron_pos[:,0],neuron_pos[:,1],'o')
-    # plt.xlabel('x axis')
-    # plt.ylabel('y axis')
+    else:
+        raise ValueError("Invalid normalization")
 
     return np.transpose(activity_norm), frame_times, UniqueID.reshape(-1), neuron_ttypes
 
@@ -339,13 +286,11 @@ def load_mouse_data_session(directory, date_exp, input_setting, normalization):
 
 
 ########################################################################################
-########################################################################################
 # For mouse data with multiple sessions,
 # - data: batch_size x neuron_num x window_size
 # - Each unique neuron is assigned a unique ID across all sessions (batch_size x neuron_num)
 # - Each neuron has cell type id (batch_size x neuron_num)
 # - cell_type2id is a dictionary from cell type to cell type id
-########################################################################################
 ########################################################################################
 
 class Mouse_All_Sessions_Dataset(TensorDataset):
@@ -381,8 +326,6 @@ def generate_mouse_all_sessions_data(
     window_size = 200, 
     batch_size = 32,
     num_workers: int = 6, 
-    shuffle: bool = False,
-    normalization = 'session',
     split_ratio = 0.8,
 ):
     
@@ -406,7 +349,6 @@ def generate_mouse_all_sessions_data(
     for i in range(len(input_sessions_file_path)):
         date_exp = input_sessions_file_path[i]['date_exp']
         input_setting = input_sessions_file_path[i]['input_setting']
-
         activity, frame_times, UniqueID, neuron_ttypes = load_mouse_data_session(
             directory, date_exp, input_setting, normalization="no"
         )
@@ -415,7 +357,6 @@ def generate_mouse_all_sessions_data(
         all_sessions_acitvity_TRAIN.append(activity[:, :int(activity.shape[1]*split_ratio)])
         all_sessions_acitvity_VAL.append(activity[:, int(activity.shape[1]*split_ratio):])
         num_neurons_per_session.append(activity.shape[0])
-
         all_sessions_activity_flatten.append(activity.flatten())
 
         # Get the first level of cell types
@@ -429,7 +370,6 @@ def generate_mouse_all_sessions_data(
 
     all_sessions_original_UniqueID = np.concatenate(all_sessions_original_UniqueID)
     all_sessions_original_cell_type = np.concatenate(all_sessions_original_cell_type)
-
     all_sessions_activity_flatten = np.concatenate(all_sessions_activity_flatten)
     mu = np.mean(all_sessions_activity_flatten)
     std = np.std(all_sessions_activity_flatten)
@@ -438,17 +378,16 @@ def generate_mouse_all_sessions_data(
     all_sessions_acitvity_TRAIN = [(session - mu) / std for session in all_sessions_acitvity_TRAIN]
     all_sessions_acitvity_VAL = [(session - mu) / std for session in all_sessions_acitvity_VAL]
     
-
     ##############################################
     # Construct new UniqueID and cell type id
     ##############################################
+
     all_sessions_new_UniqueID, num_unqiue_neurons = tools.assign_unique_neuron_ids(all_sessions_original_UniqueID, num_neurons_per_session)
     all_sessions_new_cell_type_id, cell_type_order = tools.assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per_session)
 
     neuron_id_2_cell_type_id = np.zeros((num_unqiue_neurons,)).astype(int)
     for i in range(len(all_sessions_new_UniqueID)):
         neuron_id_2_cell_type_id[all_sessions_new_UniqueID[i].astype(int)] = all_sessions_new_cell_type_id[i]
-
 
     ##############################################
     # Construct windows
@@ -466,17 +405,18 @@ def generate_mouse_all_sessions_data(
     ##############################################
     # Construct dataloaders
     ##############################################
+
     train_dataset = Mouse_All_Sessions_Dataset(
         all_sessions_activity_windows_TRAIN, 
         all_sessions_new_UniqueID_windows_TRAIN, 
         all_sessions_new_cell_type_id_window_TRAIN, 
-        batch_size=batch_size,        ###### real batch_size!!!!!!!!!!!!!!!!!!!!
+        batch_size=batch_size,        ###### real batch_size!!!
     )
     val_dataset = Mouse_All_Sessions_Dataset(
         all_sessions_activity_windows_VAL, 
         all_sessions_new_UniqueID_windows_VAL, 
         all_sessions_new_cell_type_id_window_VAL, 
-        batch_size=batch_size,        ###### real batch_size!!!!!!!!!!!!!!!!!!!!
+        batch_size=batch_size,        ###### real batch_size!!!
     )
 
     num_batch_per_session_TRAIN = train_dataset.num_batch_per_session
@@ -514,7 +454,6 @@ def generate_mouse_all_sessions_data_for_GLM(
     k,     # the number of tau(s) to consider, each tau corresponds to one A in GLM
     batch_size = 32,
     num_workers: int = 6, 
-    shuffle: bool = False,
     normalization = 'all',    # destd, all
     split_ratio = 0.8,
 ):
@@ -577,10 +516,11 @@ def generate_mouse_all_sessions_data_for_GLM(
     ##############################################
     # Construct new UniqueID and cell type id
     ##############################################
-    # all _essions_new_UniqueID: num_sessions x num_neurons_per_session
+
+    # all_essions_new_UniqueID: (num_sessions, num_neurons_per_session)
     # num_unqiue_neurons: a number, total number of unique neurons
     all_sessions_new_UniqueID, num_unqiue_neurons = tools.assign_unique_neuron_ids(all_sessions_original_UniqueID, num_neurons_per_session)
-    # all_sessions_new_cell_type_id: num_sessions x num_neurons_per_session
+    # all_sessions_new_cell_type_id: (num_sessions, num_neurons_per_session)
     # cell_type_order: a list of cell types, the index corresponds to cell type id
     all_sessions_new_cell_type_id, cell_type_order = tools.assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per_session)
 

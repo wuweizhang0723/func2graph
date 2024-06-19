@@ -1,14 +1,10 @@
-import math
 import torch
-from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 from torch.nn.modules import Module
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader, random_split
 from os.path import dirname, join as pjoin
-import scipy.io as sio
 import pandas as pd
-
 from func2graph import tools
 
 
@@ -16,21 +12,18 @@ class data_simulator(Module):
     """
     data simulator for neuron activity
     Formula:
-        x_i(t+1) = (1 - dt/tau) * x_i(t) - dt/tau * tanh{sum_j[W_ij * x_j(t) + I_i(t)]} + noise
-
-        x_i(t=0) is sampled from standard normal distribution
-        W_ij can be sampled from 1) standard normal distribution 2) cluster 3) nearest neighbor
+        x(t+1) = tanh( W @ x(t+1 - tau) + b ) + noise(t)
     """
     def __init__(
         self, 
         neuron_num: int, 
         tau=1,    # 1, 2, 3, 4, 5 ...
-        weight_scale = 0.2,
-        init_scale = 0.2,
-        error_scale = 1,
+        weight_scale=0.2,
+        init_scale=0.2,
+        error_scale=1,
         total_time=30000,
         data_random_seed=42,
-        weight_type="cell_type",    # "random" or "simple" or "cell_type"
+        weight_type="cell_type",    # "random" or "low_rank" or "cell_type"
         test=False,
     ):
         super().__init__()
@@ -51,14 +44,7 @@ class data_simulator(Module):
 
         if weight_type == "random":
             self.W_ij = weight_scale * torch.randn(neuron_num, neuron_num) # W_ij initialization
-        elif weight_type == "sparse":
-            self.W_ij = torch.zeros(neuron_num, neuron_num)
-            for i in range(0, 5):
-                self.W_ij[i][8-i] = 1
-                self.W_ij[8-i][i] = 1
-            for i in range(1, 6):
-                self.W_ij[i][10-i] = 1
-                self.W_ij[10-i][i] = 1
+
         elif weight_type == "low_rank":
             rank = 18  ####################
             eigenvalues = torch.normal(0, 2, size=(rank,))
@@ -68,9 +54,13 @@ class data_simulator(Module):
             self.W_ij = torch.zeros((neuron_num, neuron_num))
             for i in range(rank):
                 self.W_ij += eigenvalues[i] * (eigenvectors_1[i].view(neuron_num,1)@eigenvectors_2[i].view(1,neuron_num))
+
         elif weight_type == "cell_type":
             self.W_ij, self.cell_type_order, self.cell_type_ids, self.cell_type_count = tools.construct_weight_matrix_cell_type(neuron_num)
             self.W_ij = weight_scale * self.W_ij
+
+        else:
+            raise ValueError("Invalid weight_type")
 
     def forward(self, current_time_step):
         signal = F.tanh((self.W_ij @ self.activity[-int(self.tau)]) + self.b)
@@ -86,22 +76,21 @@ class data_simulator(Module):
 
 
 def generate_simulation_data(
-    neuron_num = 10,
-    tau = 0.025,
-    weight_scale = 1,
-    init_scale = 1,
-    total_time = 30000,
+    neuron_num=200,
+    tau=1,
+    weight_scale=0.2,
+    init_scale=0.2,
+    total_time=30000,
     data_random_seed=42,
     weight_type="cell_type",
-    window_size = 200, # -------------------------------
-    batch_size = 32,
-    num_workers: int = 6, 
-    shuffle: bool = False,
-    split_ratio = 0.8,
-    task_type = "prediction",    # "reconstruction" or "prediction" or "GLM_sim_exp" or "GLM_sim_tanh"
-    predict_window_size = 100,
-    data_type = "wuwei", #"ziyu", "c_elegans", "mouse"
-    spatial_partial_measurement = 200,  # the number of neurons to measured, between 0 and neuron_num
+    window_size=200, # -------------------------------
+    batch_size=32,
+    num_workers: int=6, 
+    split_ratio=0.8,
+    task_type="prediction",    # "prediction" or "GLM_sim_exp" or "GLM_sim_tanh"
+    predict_window_size=100,
+    data_type="wuwei",         #"ziyu", "wuwei"
+    spatial_partial_measurement=200,  # the number of neurons that is measured, between 0 and neuron_num
 ) -> DataLoader:
     """
     Generate dataset.
@@ -109,16 +98,25 @@ def generate_simulation_data(
     """
 
     if data_type == "ziyu":
-        v = np.load('../data/Ziyu/200_bio_sim/sim_voltage.npy')
-        # Clip to 30 and normalize the data for each neuron
-        v[v > 30] = 30
-        v_normed_alltimes = (v - np.mean(v, axis=1, keepdims=True)) / np.std(v, axis=1, keepdims=True)
+        v_normed_alltimes = pd.read_csv('../data/Ziyu/200/v_normed_alltimes.txt', header=None, sep=',')
+        v_normed_alltimes = v_normed_alltimes.to_numpy()
 
         total_time = v_normed_alltimes.shape[1]
         neuron_num = v_normed_alltimes.shape[0]
         data = torch.from_numpy(v_normed_alltimes).float()
 
-        W = np.load('../data/Mouse_Local_Connectivity/GT_NN_sim_connectivity.npy')
+        W = pd.read_csv('../data/Ziyu/200/connectivity.txt', header=None, sep=',')
+
+        # v = np.load('../data/Ziyu/200_bio_sim/sim_voltage_small.npy')
+        # # Clip to 30 and normalize the data for each neuron
+        # v[v > 30] = 30
+        # v_normed_alltimes = (v - np.mean(v, axis=1, keepdims=True)) / np.std(v, axis=1, keepdims=True)
+
+        # total_time = v_normed_alltimes.shape[1]
+        # neuron_num = v_normed_alltimes.shape[0]
+        # data = torch.from_numpy(v_normed_alltimes).float()
+
+        # W, cell_type_order, cell_type_ids, cell_type_count = tools.construct_weight_matrix_cell_type(neuron_num)
 
     elif data_type == "wuwei":
         simulator = data_simulator(
@@ -132,52 +130,29 @@ def generate_simulation_data(
         )
 
         data = []
-
         for t in range(total_time):
             x_t = simulator.forward(t)
             x_t = x_t.view(-1, 1)
             data.append(x_t)
         data = torch.cat(data, dim=1).float()
 
-    elif data_type == "c_elegans":
-        data, S_E, S_Chem = c_elegans_data_simulator()
-        total_time = data.shape[1]
-        neuron_num = data.shape[0]
-        data = torch.from_numpy(data).float()
+    # Partial Observation
 
-        train_data_size = 1000  ########################
-
-    ############################################################ Partial Observation
     if spatial_partial_measurement != neuron_num:
         # choose a subset of neurons to measure, without replacement
         idx = torch.randperm(neuron_num)[:spatial_partial_measurement]
         # sort the indices
-        idx = torch.sort(idx)[0] # !!!!!!
-        print('idx: ', idx)
+        idx = torch.sort(idx)[0]
         data = data[idx, :]
-    print(data.shape)
 
-    # Normalize on entire dataset
-    # mean = torch.mean(data, dim=1).view(-1, 1)
-    # std = torch.std(data, dim=1).view(-1, 1)
-    # data = (data - mean) / std
-
-
-    # Construct train/val data after simulation (time width=200)
-    #
-    # Train data: 
-    # - first 80% time steps (30,000 * 0.8 = 24,000)
-    # - randomly sample N indices as the start positions
-    #
-    # Val data: 
-    # - last 20% time steps (30,000 * 0.2 = 6,000)
-    # - N sliding windows
+    # First split_ratio of the data is for training (total_time * split_ratio), the rest is for validation
 
     train_data_length = int(total_time * split_ratio)
     train_data = data[:, :train_data_length]
     val_data = data[:, train_data_length:]
 
     if (task_type == "prediction"):
+
         val_data_size = val_data.shape[1] - window_size + 1
         val_start_indices = torch.arange(val_data_size)
 
@@ -190,9 +165,6 @@ def generate_simulation_data(
             else:
                 val_data_result.append(sample.view(1, neuron_num, window_size))
         val_data = torch.cat(val_data_result, dim=0)
-
-        print("val_data.shape: ", val_data.shape)
-        print(val_data[-1])
 
         train_data_size = train_data_length - window_size + 1
         train_start_indices = torch.arange(train_data_size)
@@ -207,68 +179,46 @@ def generate_simulation_data(
                 train_data_result.append(sample.view(1, neuron_num, window_size))
         train_data = torch.cat(train_data_result, dim=0)
 
+        train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
+        val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
+
     elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh"):  
+
         # Baseline_2 takes in activity from one previous time step to predict for the next time step
         train_x = train_data[:, :-1].transpose(0, 1)
         train_y = train_data[:, 1:].transpose(0, 1)
-
         val_x = val_data[:, :-1].transpose(0, 1)
         val_y = val_data[:, 1:].transpose(0, 1)
 
         if task_type == "GLM_sim_exp":    
             # find the min value and if it is negative, add abs(min val)
             min_val = torch.min(data)
-            print('min_val: ', min_val)
-
-            print(torch.min(train_x), torch.min(train_y), torch.min(val_x), torch.min(val_y))
-
-            print('abs min_val: ', torch.abs(min_val))
-
             if min_val < 0:
                 train_x = torch.abs(min_val) + train_x
                 train_y = torch.abs(min_val) + train_y
                 val_x = torch.abs(min_val) + val_x
                 val_y = torch.abs(min_val) + val_y
-
-                # destd
-                # std = torch.std(data)
-                # train_x /= std
-                # train_y /= std
-                # val_x /= std
-                # val_y /= std
             
             print('min_val_now: ', torch.min(train_x), torch.min(train_y), torch.min(val_x), torch.min(val_y))
             print('max_val_now: ', torch.max(train_x), torch.max(train_y), torch.max(val_x), torch.max(val_y))
-            
 
-    if task_type == "prediction":
-        train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
-        val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
-    elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh"):
         train_dataset = TensorDataset(train_x, train_y)
         val_dataset = TensorDataset(val_x, val_y)
-
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     if spatial_partial_measurement == neuron_num:
         if data_type == "ziyu":
-            return train_dataloader, val_dataloader, torch.from_numpy(v_normed_alltimes[:,0]), torch.from_numpy(W)
+            return train_dataloader, val_dataloader, W
         elif data_type == "wuwei":
-            return train_dataloader, val_dataloader, simulator.W_ij, simulator.b, simulator.cell_type_ids, simulator.cell_type_order, simulator.cell_type_count
-        elif data_type == "c_elegans":
-            return train_dataloader, val_dataloader, (torch.from_numpy(S_E), torch.from_numpy(S_Chem))
+            return train_dataloader, val_dataloader, simulator.W_ij, simulator.cell_type_ids, simulator.cell_type_order, simulator.cell_type_count
     else:
         if data_type == "wuwei":
             new_W_ij = torch.zeros((spatial_partial_measurement, spatial_partial_measurement))
             for i in range(spatial_partial_measurement):
                 for j in range(spatial_partial_measurement):
                     new_W_ij[i][j] = simulator.W_ij[idx[i]][idx[j]]
-
-            new_b = torch.zeros((spatial_partial_measurement,))
-            for i in range(spatial_partial_measurement):
-                new_b[i] = simulator.b[idx[i]]
 
             new_cell_type_ids = []
             for i in range(spatial_partial_measurement):
@@ -280,146 +230,14 @@ def generate_simulation_data(
                 cell_type = id2cell_type[new_cell_type_ids[i]]
                 new_cell_type_count[cell_type] += 1
 
-            return train_dataloader, val_dataloader, new_W_ij, new_b, new_cell_type_ids, simulator.cell_type_order, new_cell_type_count
-    
+            return train_dataloader, val_dataloader, new_W_ij, new_cell_type_ids, simulator.cell_type_order, new_cell_type_count
 
 
 
 
-
-
-
-# C_elegans Data ------------------------------------------------------------------------
-
-
-def c_elegans_data_simulator():
-    N_dataset = 21   # the number of worms
-    N_cell = 189     # the number of neurons
-    T = 960          # the number of time steps
-    N_length = 109
-    odor_channels = 3
-    T_start = 160
-    trace_datasets = np.zeros((N_dataset, N_cell, T))
-    odor_datasets = np.zeros((N_dataset, odor_channels, T))
-    name_list = []
-
-    # .mat data load
-    basepath = '../data/'
-    mat_fname = pjoin(basepath, 'all_traces_Heads_new.mat')
-    trace_variable = sio.loadmat(mat_fname)
-    #trace_arr = trace_variable['norm_traces']
-    trace_arr = trace_variable['traces']
-    is_L = trace_variable['is_L']
-    neurons_name = trace_variable['neurons']
-    stim_names = trace_variable["stim_names"]
-    stimulate_seconds = trace_variable['stim_times']
-    stims = trace_variable['stims']
-    # multiple trace datasets concatnate
-    for idata in range(N_dataset):
-        ineuron = 0
-        for ifile in range(N_length):
-            if trace_arr[ifile][0].shape[1] == 42:
-                data = trace_arr[ifile][0][0][idata]
-                if data.shape[0] < 1:
-                    trace_datasets[idata][ineuron][:] = np.nan
-                else:
-                    trace_datasets[idata][ineuron][0:data[0].shape[0]] = data[0]
-                ineuron+= 1
-                data = trace_arr[ifile][0][0][idata + 21]
-                if data.shape[0] < 1:
-                    trace_datasets[idata][ineuron][:] = np.nan
-                else:
-                    trace_datasets[idata][ineuron][0:data[0].shape[0]] = data[0]
-                ineuron+= 1
-            else:
-                data = trace_arr[ifile][0][0][idata]
-                if data.shape[0] < 1:
-                    trace_datasets[idata][ineuron][:] = np.nan
-                else:
-                    trace_datasets[idata][ineuron][0:data[0].shape[0]] = data[0]
-                ineuron+= 1
-
-    # neural activity target
-    activity_worms = trace_datasets[:,:, T_start:] + 2      # ********************
-    name_list = []
-    for ifile in range(N_length):
-        if is_L[ifile][0][0].shape[0] == 42:
-            name_list.append(neurons_name[ifile][0][0] + 'L')
-            name_list.append(neurons_name[ifile][0][0] + 'R')
-        else:
-            name_list.append(neurons_name[ifile][0][0])
-    activity_list = name_list
-
-    step = 0.25
-    time = np.arange(start = 0, stop = T * step , step = step)
-    # odor list
-    odor_list = ['butanone','pentanedione','NaCL']
-    # multiple odor datasets concatnate
-    for idata in range(N_dataset):
-        for it_stimu in range(stimulate_seconds.shape[0]):
-            tim1_ind = time>stimulate_seconds[it_stimu][0]
-            tim2_ind = time<stimulate_seconds[it_stimu][1]
-            odor_on = np.multiply(tim1_ind.astype(np.int64),tim2_ind.astype(np.int64))
-            stim_odor = stims[idata][it_stimu] - 1
-            odor_datasets[idata][stim_odor][:] = odor_on
-                    
-    odor_worms = odor_datasets[:,:, T_start:]
-
-    # remove the last time step in activity_worms
-    activity_worms = activity_worms[:, :, :-1]
-
-    # build a dictionary from index to neuron name
-    index_to_neuron = {}
-    for i in range(len(activity_list)):
-        index_to_neuron[i] = activity_list[i]
-
-    # build a dictionary from neuron name to index
-    neuron_to_index = {}
-    for i in range(len(activity_list)):
-        neuron_to_index[activity_list[i]] = i
-
-
-    connectivity_df = pd.read_csv('../data/white_neuron_connect.csv', skipinitialspace = True)
-
-    connectivity_result_E = np.zeros((N_cell, N_cell))
-    connectivity_result_Chem = np.zeros((N_cell, N_cell))
-    # Loop through the rows of the connectivity df
-    for i in range(connectivity_df.shape[0]):
-        if connectivity_df.iloc[i]['Type'] == 'EJ':
-            # get the pre and post neuron names
-            pre_neuron = connectivity_df.iloc[i]['Neuron 1']
-            post_neuron = connectivity_df.iloc[i]['Neuron 2']
-            if pre_neuron not in neuron_to_index or post_neuron not in neuron_to_index:
-                continue
-            # get the pre and post neuron indices
-            pre_index = neuron_to_index[pre_neuron]
-            post_index = neuron_to_index[post_neuron]
-            # set the connectivity matrix
-            connectivity_result_E[pre_index][post_index] = connectivity_df.iloc[i]['Nbr']
-
-        elif connectivity_df.iloc[i]['Type'] == 'S' or connectivity_df.iloc[i]['Type'] == 'SP':
-            pre_neuron = connectivity_df.iloc[i]['Neuron 2']
-            post_neuron = connectivity_df.iloc[i]['Neuron 1']
-            if pre_neuron not in neuron_to_index or post_neuron not in neuron_to_index:
-                continue
-            pre_index = neuron_to_index[pre_neuron]
-            post_index = neuron_to_index[post_neuron]
-            connectivity_result_Chem[pre_index][post_index] = connectivity_df.iloc[i]['Nbr']
-
-        else:
-            pre_neuron = connectivity_df.iloc[i]['Neuron 1']
-            post_neuron = connectivity_df.iloc[i]['Neuron 2']
-            if pre_neuron not in neuron_to_index or post_neuron not in neuron_to_index:
-                continue
-            pre_index = neuron_to_index[pre_neuron]
-            post_index = neuron_to_index[post_neuron]
-            connectivity_result_Chem[pre_index][post_index] = connectivity_df.iloc[i]['Nbr']
-
-    return activity_worms[0], connectivity_result_E, connectivity_result_Chem
-
-
-
-# Mouse Data --------------------------------------------------------------------------
+########################################################################################
+# Mouse Data
+########################################################################################
 
 
 def load_mouse_data_session(directory, date_exp, input_setting, normalization):

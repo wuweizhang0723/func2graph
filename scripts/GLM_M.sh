@@ -1,1 +1,1 @@
-python train_model_GLM_M.py --out_folder='../output/4_20_GLM_M/' --model_type=GLM_M --k=1 --batch_size=32 --normalization=session --model_random_seed=42 --learning_rate=1e-4 --scheduler=plateau --weight_decay=0 > out9.out
+python train_model_GLM_M.py --out_folder='../output/5_14_GLM_M/' --model_type=GLM_M --k=1 --input_mouse='SB025' --input_sessions='2019-10-23' --batch_size=32 --normalization=session --model_random_seed=42 --learning_rate=1e-4 --scheduler=plateau --weight_decay=0

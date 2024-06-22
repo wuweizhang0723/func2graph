@@ -184,3 +184,14 @@ python train_model_AwC_M.py --out_folder='../output/5_19_AcM_M_window/' --model_
 # no prior
 # window_size=10, 50, 100, 150, 200, 250, 300
 python train_model_AwC_sim.py --out_folder='../output/5_19_AwC_sim_window/' --model_type=AwC_sim --data_type=wuwei --tau=1 --weight_type=cell_type --neuron_num=200 --spatial_partial_measurement=200 --task_type=prediction --window_size=10 --predict_window_size=1 --learning_rate=1e-3 --model_random_seed=42 --data_random_seed=42 --attention_activation=none --scheduler=cycle --constraint_loss_weight=0 --constraint_var=0.1 --causal_temporal_map=none --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=0
+
+
+
+
+
+
+############################################
+# Ziyu's Izhikevich Model
+############################################
+
+python train_model_AwC_sim.py --out_folder='../output/6_18_ziyu/' --model_type=AwC_sim --data_type=ziyu --neuron_num=200 --spatial_partial_measurement=200 --task_type=prediction --window_size=200 --predict_window_size=1 --attention_layers=1 --learning_rate=1e-3 --pos_enc_type=lookup_table --model_random_seed=42 --data_random_seed=42 --attention_activation=none --scheduler=cycle --constraint_loss_weight=0 --constraint_var=0.1 --causal_temporal_map=none --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=0

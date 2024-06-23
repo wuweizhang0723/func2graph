@@ -66,9 +66,6 @@ if __name__ == "__main__":
 
     parser.add_argument("--weight_decay", default=0)
 
-    parser.add_argument("--to_q_layers", default=0)
-    parser.add_argument("--to_k_layers", default=0)
-
     parser.add_argument("--constraint_loss_weight", default=1)
     parser.add_argument("--constraint_var", default=0.04)
 
@@ -128,9 +125,6 @@ if __name__ == "__main__":
 
     weight_decay = float(args.weight_decay)
 
-    to_q_layers = int(args.to_q_layers)
-    to_k_layers = int(args.to_k_layers)
-
     constraint_loss_weight = float(args.constraint_loss_weight)
     constraint_var = float(args.constraint_var)
 
@@ -185,10 +179,6 @@ if __name__ == "__main__":
         + "_"
         + str(weight_decay)
         + "_"
-        + str(to_q_layers)
-        + "_"
-        + str(to_k_layers)
-        + "_"
         + str(constraint_loss_weight)
         + "_"
         + str(constraint_var)
@@ -226,8 +216,6 @@ if __name__ == "__main__":
             heads=heads,
             attention_layers=attention_layers,
             dim_key=dim_key,
-            to_q_layers=to_q_layers,
-            to_k_layers=to_k_layers,
             hidden_size_2=hidden_size_2,
             h_layers_2=h_layers_2,
             dropout=dropout,
@@ -317,7 +305,7 @@ if __name__ == "__main__":
             # ground_truths[i].append(x)
             attentions[i].append(attention)
 
-            attention_3 = train_results[index][3]
+            # attention_3 = train_results[index][3]
             # attentions_3[i].append(attention_3)
             
             index += 1
@@ -373,19 +361,21 @@ if __name__ == "__main__":
 
     R_squared = r2_score(flatten_ground_truths, flatten_predictions)
 
+    mse = np.mean((flatten_predictions - flatten_ground_truths) ** 2)
+
     # plot the prediction and groundtruth curve for 5 neurons
     for i in range(10):
         plt.subplot(10, 1, i+1)
         print("hhhh " + str(predictions[0].shape))
-        plt.plot(predictions[0][:50, i, 0], label="Prediction")
-        plt.plot(ground_truths[0][:50, i, 0], label="Ground Truth")
+        plt.plot(predictions[0][:200, i, 0], label="Prediction")
+        plt.plot(ground_truths[0][:200, i, 0], label="Ground Truth")
     plt.legend()
     plt.savefig(output_path + "/curve.png")
     plt.close()
 
 
     plt.scatter(flatten_predictions, flatten_ground_truths, s=1)
-    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7] + ", R^2 = " + str(R_squared)[:7])
+    plt.title("val_corr = " + str(pred_corr)[:7] + ", R^2 = " + str(R_squared)[:7] + ", mse = " + str(mse)[:7])
     plt.xlabel("Predictions")
     plt.ylabel("Ground Truths")
     plt.savefig(output_path + "/pred.png")

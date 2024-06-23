@@ -807,13 +807,6 @@ class Attention_With_Constraint(Base_2):
         for layer in range(attention_layers):
             self.attentionlayers.append(
                 nn.Sequential(
-                    # Attention(
-                    #     dim=dim_in,  # the last dimension of input
-                    #     heads=heads,
-                    #     dim_key=dim_key,
-                    #     prediction_mode=True,  ##############################
-                    #     activation = attention_activation,
-                    # ),
                     Causal_Temporal_Map_Attention(
                         dim=dim_in,
                         prediction_mode=True,
@@ -826,32 +819,8 @@ class Attention_With_Constraint(Base_2):
             self.attentionlayers.append(
                 nn.Sequential(
                     nn.LayerNorm(dim_in),
-                    # Residual(
-                    #     nn.Sequential(
-                    #         nn.Linear(dim_in, hidden_size_1 * 2),
-                    #         nn.Dropout(dropout),
-                    #         nn.ReLU(),
-                    #         nn.Linear(hidden_size_1 * 2, dim_in),
-                    #         nn.Dropout(dropout),
-                    #         nn.ReLU(),
-                    #     )
-                    # ),
-                    # nn.LayerNorm(dim_in),
                 )
             )
-
-        # MLP_2
-
-        # self.fc2 = nn.Sequential(
-        #     nn.Linear(dim_in, hidden_size_2), nn.ReLU()
-        # )
-
-        # self.fclayers2 = nn.ModuleList(
-        #     nn.Sequential(
-        #         nn.Linear(hidden_size_2, hidden_size_2), nn.ReLU(), nn.Dropout(dropout)
-        #     )
-        #     for layer in range(h_layers_2)
-        # )
 
         # self.out = nn.Linear(dim_in, predict_window_size, bias=False)
 

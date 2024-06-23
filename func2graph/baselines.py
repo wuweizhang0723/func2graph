@@ -12,7 +12,6 @@ from func2graph.layers import (
     Residual,
     Residual_For_Attention,
     Attention,
-    PositionalEncoding,
 )
 
 

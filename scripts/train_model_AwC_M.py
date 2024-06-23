@@ -1,11 +1,8 @@
 import numpy as np
-import pandas as pd
 from scipy import stats
 import matplotlib.pyplot as plt
 import argparse
 import torch
-import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader, random_split
 import pytorch_lightning as pl
 from pytorch_lightning import loggers
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -15,7 +12,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from os import listdir
 from sklearn.metrics import r2_score
 
-from func2graph import data, models, baselines, tools
+from func2graph import data, models, tools
 
 
 if __name__ == "__main__":
@@ -201,7 +198,6 @@ if __name__ == "__main__":
         input_sessions=input_sessions,
         window_size=window_size,
         batch_size=batch_size,
-        normalization=normalization,
     )
 
     if model_type == "Attention_With_Constraint":

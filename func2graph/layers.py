@@ -305,6 +305,7 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
 
         attn = einsum("b n d, b m d -> b n m", queries, keys)
         attn = self.attn_dropout(attn)
+        attn = attn * self.scale
 
         v = x  # identity mapping
         out = einsum("b n m, b m t -> b n t", attn, v)

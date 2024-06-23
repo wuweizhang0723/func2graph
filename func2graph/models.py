@@ -769,7 +769,7 @@ class Attention_With_Constraint(Base_2):
         log_input = False,
         attention_activation = "none", # "softmax" or "sigmoid" or "tanh"
         weight_decay = 0,
-        causal_temporal_map = 'none',  # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+        causal_temporal_map = 'none',  # 'none', 'off_diagonal', 'lower_triangle'
         causal_temporal_map_diff = 1,
         l1_on_causal_temporal_map = 0,
         constraint_loss_weight = 1,
@@ -842,10 +842,6 @@ class Attention_With_Constraint(Base_2):
 
         # output = output + (x+e)       ################### residual connection
 
-        # x = self.fc2(x)
-        # for layer in self.fclayers2:
-        #     x = layer(x)
-
         # x = self.out(x)
 
         batch_neuron_num = attention_results[0].shape[-1]
@@ -879,7 +875,7 @@ class Attention_With_Constraint_2(Base_2):
         scheduler="cycle",
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         weight_decay = 0,
-        causal_temporal_map = 'none',  # 'none', 'off_diagonal_1', 'off_diagonal', 'lower_triangle'
+        causal_temporal_map = 'none',  # 'none', 'off_diagonal', 'lower_triangle'
         causal_temporal_map_diff = 1,
         l1_on_causal_temporal_map = 0,
         constraint_loss_weight = 1,

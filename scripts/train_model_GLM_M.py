@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--k", default=1)
     parser.add_argument("--batch_size", help="the batch size", type=int, default=32)
-    parser.add_argument("--normalization", default="session")   # "none" or "session" or "neuron" or "log"
+    parser.add_argument("--normalization", default="all")    # "all" or "destd"
 
     # Model
 
@@ -43,6 +43,8 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", help="learning rate", default=1e-4)
     parser.add_argument("--scheduler", default="plateau")    # "none" or "plateau"
     parser.add_argument("--weight_decay", default=0)
+
+    parser.add_argument("--activation_type", default="tanh")   # "tanh" or "exp"
 
     args = parser.parse_args()
 
@@ -52,8 +54,10 @@ if __name__ == "__main__":
 
     # Data
 
-    input_mouse = args.input_mouse
-    input_sessions = [str(session) for session in args.input_sessions.split('_')]
+    input_mouse = [str(mouse) for mouse in args.input_mouse.split('|')]
+    input_sessions = [str(mouse) for mouse in args.input_sessions.split('|')]
+    for i in range(len(input_sessions)):
+        input_sessions[i] = input_sessions[i].split('_')
 
     k = int(args.k)
     batch_size = int(args.batch_size)
@@ -66,12 +70,13 @@ if __name__ == "__main__":
     scheduler = args.scheduler
     weight_decay = float(args.weight_decay)
 
+    activation_type = args.activation_type
 
     output_path = (
         out_folder
         + model_type
         + "_"
-        + input_mouse
+        + args.input_mouse
         + "_"
         + args.input_sessions
         + "_"
@@ -88,7 +93,12 @@ if __name__ == "__main__":
         + scheduler
         + "_"
         + str(weight_decay)
+        + "_"
+        + activation_type
     )
+
+    if activation_type == "exp":
+        normalization = "destd"
 
     train_dataloader_list, val_dataloader_list, num_unqiue_neurons, cell_type_order, all_sessions_new_cell_type_id, sessions_2_original_cell_type, neuron_id_2_cell_type_id = data.generate_mouse_all_sessions_data_for_GLM(
         input_mouse=input_mouse,
@@ -142,6 +152,7 @@ if __name__ == "__main__":
                 scheduler=scheduler,
                 weight_decay=weight_decay,
                 model_random_seed=model_random_seed,
+                activation_type=activation_type,
             )
 
 
@@ -181,7 +192,7 @@ if __name__ == "__main__":
                 profiler="simple",
                 logger=logger,
                 max_epochs=500,
-                gradient_clip_val=0,
+                gradient_clip_val=1,
             )
             trainer.fit(single_model, train_dataloader, val_dataloader)
 
@@ -200,11 +211,12 @@ if __name__ == "__main__":
             val_target = val_results[:,num_neurons:]
 
             corr = stats.pearsonr(val_pred.flatten(), val_target.flatten())[0]
-            R_squared = r2_score(val_pred.flatten(), val_target.flatten())
+            R_squared = r2_score(val_target.flatten(), val_pred.flatten())
+            MSE = np.mean((val_target.flatten() - val_pred.flatten()) ** 2)
             plt.scatter(val_pred.flatten(), val_target.flatten(), s=1)
             plt.xlabel("Predicted")
             plt.ylabel("Target")
-            plt.title("Validation, corr = " + str(corr)[:7] + ", R^2 = " + str(R_squared)[:7])
+            plt.title("Validation, corr = " + str(corr)[:7] + ", R^2 = " + str(R_squared)[:7] + ", MSE = " + str(MSE)[:7])
             plt.savefig(checkpoint_path + "/scatter.png")
             plt.close()
 
@@ -269,7 +281,7 @@ if __name__ == "__main__":
         spearman_corr_strength_KK = stats.spearmanr(GT_strength_connectivity.flatten(), eval_KK_strength.flatten())[0]
 
         ############################################################ plot
-        plt.imshow(eval_KK_strength, interpolation="nearest")
+        plt.imshow(eval_KK_strength, interpolation="nearest", cmap='RdBu_r')
         plt.colorbar()
         plt.xlabel("Pre")
         plt.ylabel("Post")

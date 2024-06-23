@@ -125,6 +125,11 @@ if __name__ == "__main__":
     checkpoint_path = output_path
     log_path = out_folder + "/log"
 
+    if activation_type == "tanh":
+        task_type = "GLM_sim_tanh"
+    elif activation_type == "exp":
+        task_type = "GLM_sim_exp"
+
     data_result = data.generate_simulation_data(
         neuron_num=neuron_num,
         tau=tau,
@@ -135,7 +140,7 @@ if __name__ == "__main__":
         weight_type=weight_type,
         window_size=window_size,
         batch_size=batch_size,
-        task_type='GLM_sim',
+        task_type=task_type,  #####################################
         predict_window_size=predict_window_size,
         data_type=data_type,
         spatial_partial_measurement=spatial_partial_measurement,
@@ -179,7 +184,7 @@ if __name__ == "__main__":
         benchmark=False,
         profiler="simple",
         logger=logger,
-        max_epochs=100,   # 1000
+        max_epochs=1000,   # 1000
     )
 
     trainer.fit(single_model, trainloader, validloader)
@@ -205,10 +210,11 @@ if __name__ == "__main__":
     ground_truths = val_results[:, neuron_num:]
 
     pred_corr = stats.pearsonr(predictions.flatten(), ground_truths.flatten())[0]
-    R_squared = r2_score(predictions.flatten(), ground_truths.flatten())
+    R_squared = r2_score(ground_truths.flatten(), predictions.flatten())
+    MSE = np.mean((predictions.flatten() - ground_truths.flatten()) ** 2)
 
     plt.scatter(predictions.flatten(), ground_truths.flatten(), s=1)
-    plt.title("Pred vs GT, val_corr = " + str(pred_corr)[:7] + ", R^2 = " + str(R_squared)[:7])
+    plt.title("val_corr = " + str(pred_corr)[:7] + ", R^2 = " + str(R_squared)[:7] + ", MSE = " + str(MSE)[:7])
     plt.xlabel("Predictions")
     plt.ylabel("Ground Truths")
     plt.savefig(output_path + "/pred.png")
@@ -230,7 +236,7 @@ if __name__ == "__main__":
         ############################################################# Strength connection evaluation 
 
         estimation_corr = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
-        estimation_corr_abs = np.corrcoef(np.abs(W.flatten()), np.abs(weight_matrix).flatten())[0, 1]
+        estimation_spearman_corr = stats.spearmanr(W.flatten(), weight_matrix.flatten())[0]
 
         strength_matrix = np.zeros((4, 4))
         strength_matrix[0, 0] = 0.11
@@ -338,7 +344,7 @@ if __name__ == "__main__":
         max_abs = np.max(np.abs(W))
         plt.imshow(W, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
         plt.colorbar()
-        plt.title("W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (corr_abs: " + str(estimation_corr_abs)[:6] + ")")
+        plt.title("W" + " (corr: " + str(estimation_corr)[:6] + ") " + " (spearman: " + str(estimation_spearman_corr)[:6] + ")")
         plt.xticks([])
         plt.yticks([])
         plt.savefig(output_path + "/NN_strength.png")

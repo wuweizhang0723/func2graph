@@ -186,12 +186,12 @@ if __name__ == "__main__":
     )
     if data_type == "wuwei":
         # cell_type_ids records the cell type of each neuron
-        trainloader, validloader, weight_matrix, b, cell_type_ids, cell_type_order, cell_type_count = data_result
-        derivative_b = 1 - torch.tanh(b)**2
+        trainloader, validloader, weight_matrix, cell_type_ids, cell_type_order, cell_type_count = data_result
         # weight_matrix = (derivative_b.view(-1,1) * weight_matrix).detach().numpy()
         weight_matrix = weight_matrix.detach().numpy()
     elif data_type == "ziyu":
-        trainloader, validloader, b, weight_matrix = data_result
+        trainloader, validloader, weight_matrix = data_result
+        weight_matrix = weight_matrix.to_numpy()
     elif data_type == "c_elegans":
         trainloader, validloader, weight_matrix = data_result
         weight_matrix_E = weight_matrix[0].detach().numpy()
@@ -220,7 +220,6 @@ if __name__ == "__main__":
         l1_on_causal_temporal_map = l1_on_causal_temporal_map,
         constraint_loss_weight = constraint_loss_weight,
         constraint_var = constraint_var,
-        b = b,
         out_layer = out_layer,
     )
 
@@ -300,7 +299,7 @@ if __name__ == "__main__":
     plt.close()
 
 
-    if data_type == "wuwei":
+    if (data_type == "wuwei"):
 
         ############################################################# Strength connection evaluation 
 
@@ -523,3 +522,28 @@ if __name__ == "__main__":
         # plt.title("prob_GT")
         # plt.savefig(output_path + "/GT_NN_prob.png")
         # plt.close()
+
+    elif data_type == "ziyu":
+
+        ############################################################# Strength connection evaluation 
+
+        corr_strength_NN = np.corrcoef(W.flatten(), weight_matrix.flatten())[0, 1]
+        spearman_corr_strength_NN = stats.spearmanr(W.flatten(), weight_matrix.flatten())[0]
+
+        # NN
+        max_abs = np.max(np.abs(W))
+        plt.imshow(W, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
+        plt.colorbar()
+        plt.title("W" + " (corr: " + str(corr_strength_NN)[:6] + ") " + " (spearman: " + str(spearman_corr_strength_NN)[:6] + ")")
+        plt.savefig(output_path + "/NN_strength.png")
+        plt.close()
+
+        np.save(output_path + "/Estimated_NN_strength.npy", W)
+
+        # GT
+        max_abs = np.max(np.abs(weight_matrix))
+        plt.imshow(weight_matrix, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
+        plt.colorbar()
+        plt.title("GT")
+        plt.savefig(output_path + "/GT_NN_strength.png")
+        plt.close()

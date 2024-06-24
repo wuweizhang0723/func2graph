@@ -754,7 +754,7 @@ class Attention_With_Constraint(Base_2):
         causal_temporal_map = 'none',  # 'none', 'off_diagonal', 'lower_triangle'
         causal_temporal_map_diff = 1,
         l1_on_causal_temporal_map = 0,
-        constraint_loss_weight = 1,
+        constraint_loss_weight = 0,
         constraint_var = 1,
     ):
         super().__init__()
@@ -859,7 +859,7 @@ class Attention_With_Constraint_2(Base_2):
         causal_temporal_map = 'none',  # 'none', 'off_diagonal', 'lower_triangle'
         causal_temporal_map_diff = 1,
         l1_on_causal_temporal_map = 0,
-        constraint_loss_weight = 1,
+        constraint_loss_weight = 0,
         constraint_var = 1,
         dim_E = 128,
     ):

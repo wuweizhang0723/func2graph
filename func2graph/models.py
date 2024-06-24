@@ -48,13 +48,12 @@ class Base(pl.LightningModule):
         return [optimizer], [lr_scheduler]
     
     def training_step(self, batch, batch_idx):
-        if self.hparams.task_type == "prediction":
-            x, y = batch
-            y_hat = self(x)
-            
-            # pred = y_hat[:, :, -1:]
-            pred = y_hat
-            target = y
+        x, y = batch
+        y_hat = self(x)
+        
+        # pred = y_hat[:, :, -1:]
+        pred = y_hat
+        target = y
 
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
@@ -68,15 +67,14 @@ class Base(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        if self.hparams.task_type == "prediction":
-            x, y = batch
-            y_hat = self(x)
-            
-            # pred = y_hat[:, :, -1:]
-            pred = y_hat
-            target = y
+        x, y = batch
+        y_hat = self(x)
+        
+        # pred = y_hat[:, :, -1:]
+        pred = y_hat
+        target = y
 
-            result = torch.stack([pred.cpu().detach(), target.cpu().detach()], dim=1)
+        result = torch.stack([pred.cpu().detach(), target.cpu().detach()], dim=1)
 
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean")
@@ -90,12 +88,11 @@ class Base(pl.LightningModule):
         return result
     
     def test_step(self, batch, batch_idx):
-        if self.hparams.task_type == "prediction":
-            x, y = batch
-            y_hat = self(x)
-            
-            pred = y_hat
-            target = y
+        x, y = batch
+        y_hat = self(x)
+        
+        pred = y_hat
+        target = y
 
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean")
@@ -108,11 +105,10 @@ class Base(pl.LightningModule):
         self.log(str(self.hparams.loss_function) + " test_loss", loss)
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        if self.hparams.task_type == "prediction":
-            x, y = batch
-            y_hat, attention, neuron_embedding = self(x)
+        x, y = batch
+        y_hat, attention, neuron_embedding = self(x)
 
-            return y_hat, y, attention, neuron_embedding
+        return y_hat, y, attention, neuron_embedding
     
 
 
@@ -137,7 +133,6 @@ class Attention_Autoencoder(Base):
         scheduler="plateau",
         prediction_mode=False,
         pos_enc_type="lookup_table",  # "lookup_table" or "none"
-        task_type = "prediction",    # "prediction"
         predict_window_size = 100,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         log_input = False,
@@ -158,16 +153,14 @@ class Attention_Autoencoder(Base):
 
         # MLP_1
 
-        if (task_type == "prediction"):
-            hidden_size_1 = window_size - predict_window_size
+        hidden_size_1 = window_size - predict_window_size
 
 
-        # if task_type == "prediction":
-        #     hidden_size_1 = window_size - predict_window_size       #######################
+        # hidden_size_1 = window_size - predict_window_size       #######################
 
-        #     self.fc1 = nn.Sequential(
-        #         nn.Linear(window_size - predict_window_size, hidden_size_1), nn.ReLU()
-        #     )
+        # self.fc1 = nn.Sequential(
+        #     nn.Linear(window_size - predict_window_size, hidden_size_1), nn.ReLU()
+        # )
 
         # self.fclayers1 = nn.ModuleList(
         #     nn.Sequential(
@@ -264,10 +257,7 @@ class Attention_Autoencoder(Base):
         #     for layer in range(h_layers_2)
         # )
 
-        # if (task_type == "reconstruction") or (task_type == "mask"):
-        #     self.out = nn.Linear(hidden_size_2, window_size)
-        # elif task_type == "prediction":
-        #     self.out = nn.Linear(hidden_size_2, predict_window_size)
+        # self.out = nn.Linear(hidden_size_2, predict_window_size)
 
 
     def forward(self, x): # x: batch_size * (neuron_num*time)
@@ -347,28 +337,27 @@ class Base_3(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         cell_type_count = [int(self.hparams.neuron_num*0.76), int(self.hparams.neuron_num*0.08), int(self.hparams.neuron_num*0.08), int(self.hparams.neuron_num*0.08)]
 
-        if self.hparams.task_type == "prediction":
-            x, y = batch
-            y_hat, neuron_level_attention, cell_type_level_constraint = self(x)
-            
-            pred = y_hat
-            target = y
+        x, y = batch
+        y_hat, neuron_level_attention, cell_type_level_constraint = self(x)
+        
+        pred = y_hat
+        target = y
 
-            expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
-            accumulated_count_row = 0
-            for i in range(len(cell_type_count)):
-                accumulated_count_row += cell_type_count[i]
-                accumulated_count_col = 0
-                for j in range(len(cell_type_count)):
-                    accumulated_count_col += cell_type_count[j]
-                    expanded_cell_type_level_constraint[accumulated_count_row-cell_type_count[i]:accumulated_count_row, accumulated_count_col-cell_type_count[j]:accumulated_count_col] = cell_type_level_constraint[i, j]
+        expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
+        accumulated_count_row = 0
+        for i in range(len(cell_type_count)):
+            accumulated_count_row += cell_type_count[i]
+            accumulated_count_col = 0
+            for j in range(len(cell_type_count)):
+                accumulated_count_col += cell_type_count[j]
+                expanded_cell_type_level_constraint[accumulated_count_row-cell_type_count[i]:accumulated_count_row, accumulated_count_col-cell_type_count[j]:accumulated_count_col] = cell_type_level_constraint[i, j]
 
-            # Expand the first dimension of expanded_cell_type_level_constraint to batch_size
-            expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
+        # Expand the first dimension of expanded_cell_type_level_constraint to batch_size
+        expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
 
-            # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
-            var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var
-            constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
+        # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
+        var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var
+        constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
 
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
@@ -386,30 +375,29 @@ class Base_3(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         cell_type_count = [int(self.hparams.neuron_num*0.76), int(self.hparams.neuron_num*0.08), int(self.hparams.neuron_num*0.08), int(self.hparams.neuron_num*0.08)]
 
-        if self.hparams.task_type == "prediction":
-            x, y = batch
-            y_hat, neuron_level_attention, cell_type_level_constraint = self(x)
-            
-            pred = y_hat
-            target = y
+        x, y = batch
+        y_hat, neuron_level_attention, cell_type_level_constraint = self(x)
+        
+        pred = y_hat
+        target = y
 
-            expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
-            accumulated_count_row = 0
-            for i in range(len(cell_type_count)):
-                accumulated_count_row += cell_type_count[i]
-                accumulated_count_col = 0
-                for j in range(len(cell_type_count)):
-                    accumulated_count_col += cell_type_count[j]
-                    expanded_cell_type_level_constraint[(accumulated_count_row-cell_type_count[i]):accumulated_count_row, (accumulated_count_col-cell_type_count[j]):accumulated_count_col] = cell_type_level_constraint[i, j]
+        expanded_cell_type_level_constraint = torch.zeros((neuron_level_attention.shape[1],neuron_level_attention.shape[2]), requires_grad=True).to(pred.device)
+        accumulated_count_row = 0
+        for i in range(len(cell_type_count)):
+            accumulated_count_row += cell_type_count[i]
+            accumulated_count_col = 0
+            for j in range(len(cell_type_count)):
+                accumulated_count_col += cell_type_count[j]
+                expanded_cell_type_level_constraint[(accumulated_count_row-cell_type_count[i]):accumulated_count_row, (accumulated_count_col-cell_type_count[j]):accumulated_count_col] = cell_type_level_constraint[i, j]
 
-            # Expand the first dimension of expanded_cell_type_level_constraint to batch_size
-            expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
+        # Expand the first dimension of expanded_cell_type_level_constraint to batch_size
+        expanded_cell_type_level_constraint = einops.repeat(expanded_cell_type_level_constraint, 'n d -> b n d', b=neuron_level_attention.shape[0])
 
-            # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
-            var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var
-            constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
+        # Use Gaussian NLL Loss to add constraint, var should be a hyperparameter
+        var_constraint = torch.ones(neuron_level_attention.shape, requires_grad=True).to(pred.device) * self.hparams.constraint_var
+        constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
 
-            result = torch.stack([pred.cpu().detach(), target.cpu().detach()], dim=1)
+        result = torch.stack([pred.cpu().detach(), target.cpu().detach()], dim=1)
 
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean")
@@ -443,7 +431,6 @@ class Attention_With_Constraint_sim(Base_3):
         learning_rate=1e-4,
         scheduler="plateau",
         pos_enc_type="lookup_table",  # "lookup_table" or "none"
-        task_type = "prediction",    # "prediction"
         predict_window_size=1,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         attention_activation = "none", # "softmax" or "sigmoid" or "tanh", "none"
@@ -466,8 +453,7 @@ class Attention_With_Constraint_sim(Base_3):
         # k * k matrix constraint
         self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
 
-        if task_type == "prediction":
-            hidden_size_1 = window_size - predict_window_size
+        hidden_size_1 = window_size - predict_window_size
 
         # Attention
 
@@ -756,8 +742,7 @@ class Attention_With_Constraint(Base_2):
         window_size=200,
         hidden_size_1=128, # MLP_1
         h_layers_1=2,
-        heads=1,  # Attention
-        attention_layers=1,
+        attention_layers=1,   # Attention
         dim_key=64,
         hidden_size_2=256, # MLP_2
         h_layers_2=2,

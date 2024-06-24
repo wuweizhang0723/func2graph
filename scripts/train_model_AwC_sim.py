@@ -210,7 +210,6 @@ if __name__ == "__main__":
         learning_rate=learning_rate,
         scheduler=scheduler,
         pos_enc_type=pos_enc_type,
-        task_type=task_type,
         predict_window_size=predict_window_size,
         loss_function = loss_function,
         attention_activation = attention_activation,

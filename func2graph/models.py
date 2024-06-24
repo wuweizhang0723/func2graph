@@ -427,7 +427,6 @@ class Attention_With_Constraint_sim(Base_3):
         neuron_num=200,
         num_cell_types=4,
         window_size=200,
-        attention_layers=1,  # Attention
         learning_rate=1e-4,
         scheduler="plateau",
         pos_enc_type="lookup_table",  # "lookup_table" or "none"
@@ -470,23 +469,22 @@ class Attention_With_Constraint_sim(Base_3):
         dim_in = hidden_size_1
 
         self.attentionlayers = nn.ModuleList()
-        for layer in range(attention_layers):
-            self.attentionlayers.append(
-                nn.Sequential(
-                    Causal_Temporal_Map_Attention(
-                        dim=dim_in,  # the last dimension of input
-                        prediction_mode=True,
-                        activation = attention_activation,
-                        causal_temporal_map = causal_temporal_map,
-                        diff = causal_temporal_map_diff,
-                    ),
-                )
+        self.attentionlayers.append(
+            nn.Sequential(
+                Causal_Temporal_Map_Attention(
+                    dim=dim_in,  # the last dimension of input
+                    prediction_mode=True,
+                    activation = attention_activation,
+                    causal_temporal_map = causal_temporal_map,
+                    diff = causal_temporal_map_diff,
+                ),
             )
-            self.attentionlayers.append(
-                nn.Sequential(
-                    nn.LayerNorm(dim_in),
-                )
+        )
+        self.attentionlayers.append(
+            nn.Sequential(
+                nn.LayerNorm(dim_in),
             )
+        )
 
         self.out_layer = out_layer
         if out_layer == True:
@@ -742,8 +740,7 @@ class Attention_With_Constraint(Base_2):
         window_size=200,
         hidden_size_1=128, # MLP_1
         h_layers_1=2,
-        attention_layers=1,   # Attention
-        dim_key=64,
+        dim_key=64,   # Attention
         hidden_size_2=256, # MLP_2
         h_layers_2=2,
         dropout=0.2,
@@ -789,23 +786,22 @@ class Attention_With_Constraint(Base_2):
 
         self.attentionlayers = nn.ModuleList()
 
-        for layer in range(attention_layers):
-            self.attentionlayers.append(
-                nn.Sequential(
-                    Causal_Temporal_Map_Attention(
-                        dim=dim_in,
-                        prediction_mode=True,
-                        activation = attention_activation,
-                        causal_temporal_map = causal_temporal_map,
-                        diff = causal_temporal_map_diff,
-                    )
+        self.attentionlayers.append(
+            nn.Sequential(
+                Causal_Temporal_Map_Attention(
+                    dim=dim_in,
+                    prediction_mode=True,
+                    activation = attention_activation,
+                    causal_temporal_map = causal_temporal_map,
+                    diff = causal_temporal_map_diff,
                 )
             )
-            self.attentionlayers.append(
-                nn.Sequential(
-                    nn.LayerNorm(dim_in),
-                )
+        )
+        self.attentionlayers.append(
+            nn.Sequential(
+                nn.LayerNorm(dim_in),
             )
+        )
 
         # self.out = nn.Linear(dim_in, predict_window_size, bias=False)
 

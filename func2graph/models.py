@@ -738,12 +738,8 @@ class Attention_With_Constraint(Base_2):
         model_type="Attention_With_Constraint",
         model_random_seed=42,
         window_size=200,
-        hidden_size_1=128, # MLP_1
         h_layers_1=2,
         dim_key=64,   # Attention
-        hidden_size_2=256, # MLP_2
-        h_layers_2=2,
-        dropout=0.2,
         learning_rate=1e-4,
         scheduler="cycle",
         predict_window_size = 1,
@@ -772,8 +768,6 @@ class Attention_With_Constraint(Base_2):
         # self.dist_var = nn.Parameter(torch.ones(1), requires_grad=True)
 
         self.predict_window_size = predict_window_size
-
-        # MLP_1
 
         hidden_size_1 = window_size - predict_window_size
 

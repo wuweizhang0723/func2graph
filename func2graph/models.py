@@ -627,7 +627,10 @@ class Base_2(pl.LightningModule):
         target = target.reshape(pred.shape)
 
         if self.hparams.loss_function == "mse":
-            loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
+            if self.hparams.l1_on_causal_temporal_map != 0:
+                loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
+            else:
+                loss = F.mse_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "poisson":
             loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
         elif self.hparams.loss_function == "gaussian":

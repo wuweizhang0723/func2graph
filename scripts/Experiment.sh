@@ -166,6 +166,21 @@ python train_model_AwC_M.py --out_folder='../output/5_17_AcM_M_activation/' --mo
 
 
 
+############################################
+# 7. AwC_M2: E_concat model architecture
+############################################
+
+# AwC_M2
+# SB025 2019-10-23
+# seed 42
+# no prior
+# window_size=60
+# dim_E=30
+python train_model_AwC_M.py --out_folder='../output/8_2_AwC_M2/' --model_type=Attention_With_Constraint_2 --input_mouse='SB025' --input_sessions='2019-10-23' --window_size=60 --predict_window_size=1 --normalization=session --model_random_seed=42 --learning_rate=1e-3 --scheduler=plateau --constraint_loss_weight=0 --constraint_var=1 --causal_temporal_map=none --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=0 --dim_E=30
+
+
+
+
 
 ############################################
 # Appendix 1. Window Size
@@ -184,8 +199,6 @@ python train_model_AwC_M.py --out_folder='../output/5_19_AcM_M_window/' --model_
 # no prior
 # window_size=10, 50, 100, 150, 200, 250, 300
 python train_model_AwC_sim.py --out_folder='../output/5_19_AwC_sim_window/' --model_type=AwC_sim --data_type=wuwei --tau=1 --weight_type=cell_type --neuron_num=200 --spatial_partial_measurement=200 --task_type=prediction --window_size=10 --predict_window_size=1 --learning_rate=1e-3 --model_random_seed=42 --data_random_seed=42 --attention_activation=none --scheduler=cycle --constraint_loss_weight=0 --constraint_var=0.1 --causal_temporal_map=none --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=0
-
-
 
 
 

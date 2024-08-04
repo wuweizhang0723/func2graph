@@ -521,16 +521,17 @@ if __name__ == "__main__":
 
 
     ############################################################# TT matrix evaluation
-    TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
-    TT = TT.T
+    if model_type == "Attention_With_Constraint":
+        TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
+        TT = TT.T
 
-    plt.imshow(TT, cmap='bone', interpolation="nearest")
-    plt.title("W_Q @ W_K^T")
-    plt.colorbar()
-    plt.savefig(output_path + "/TT.png")
-    plt.close()
+        plt.imshow(TT, cmap='bone', interpolation="nearest")
+        plt.title("W_Q @ W_K^T")
+        plt.colorbar()
+        plt.savefig(output_path + "/TT.png")
+        plt.close()
 
-    np.save(output_path + "/TT.npy", TT)
+        np.save(output_path + "/TT.npy", TT)
 
     ############################################################ plot
     plt.imshow(eval_prior_KK_var, interpolation="nearest")

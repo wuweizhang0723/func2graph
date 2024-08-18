@@ -41,17 +41,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--model_random_seed", default=42)
 
-    parser.add_argument("--hidden_size_1", help="hidden size 1", default=128)
     parser.add_argument("--h_layers_1", help="h layers 1", default=2)
 
-    parser.add_argument("--heads", help="heads", default=1)
-    parser.add_argument("--attention_layers", help="attention layers", default=1)
     parser.add_argument("--dim_key", default=64)
-
-    parser.add_argument("--hidden_size_2", help="hidden size 2", default=258)
-    parser.add_argument("--h_layers_2", help="h layers 2", default=0)
-
-    parser.add_argument("--dropout", help="dropout", default=0.2)
 
     parser.add_argument("--learning_rate", help="learning rate", default=1e-4)
 
@@ -100,20 +92,11 @@ if __name__ == "__main__":
 
     model_random_seed = int(args.model_random_seed)
 
-    hidden_size_1 = int(args.hidden_size_1)
     h_layers_1 = int(args.h_layers_1)
 
-    heads = int(args.heads)
-    attention_layers = int(args.attention_layers)
     dim_key = int(args.dim_key)
 
-    hidden_size_2 = int(args.hidden_size_2)
-    h_layers_2 = int(args.h_layers_2)
-
-    dropout = float(args.dropout)
-
     learning_rate = float(args.learning_rate)
-
     loss_function = args.loss_function
 
     attention_activation = args.attention_activation
@@ -150,21 +133,9 @@ if __name__ == "__main__":
         + "_"
         + str(model_random_seed)
         + "_"
-        + str(hidden_size_1)
-        + "_"
         + str(h_layers_1)
         + "_"
-        + str(heads)
-        + "_"
-        + str(attention_layers)
-        + "_"
         + str(dim_key)
-        + "_"
-        + str(hidden_size_2)
-        + "_"
-        + str(h_layers_2)
-        + "_"
-        + str(dropout)
         + "_"
         + str(learning_rate)
         + "_"
@@ -207,14 +178,8 @@ if __name__ == "__main__":
             model_random_seed=model_random_seed,
             window_size=window_size,
             predict_window_size=predict_window_size,
-            hidden_size_1=hidden_size_1,
             h_layers_1=h_layers_1,
-            heads=heads,
-            attention_layers=attention_layers,
             dim_key=dim_key,
-            hidden_size_2=hidden_size_2,
-            h_layers_2=h_layers_2,
-            dropout=dropout,
             learning_rate=learning_rate,
             loss_function=loss_function,
             log_input=log_input,

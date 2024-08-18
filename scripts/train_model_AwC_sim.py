@@ -50,7 +50,6 @@ if __name__ == "__main__":
     # Model
     parser.add_argument("--model_random_seed", default=42)
 
-    parser.add_argument("--attention_layers", help="attention layers", default=1)
     parser.add_argument("--attention_activation", default="none")    # "softmax" or "sigmoid" or "tanh" or "none"
     parser.add_argument("--pos_enc_type", default="lookup_table")
 
@@ -100,7 +99,6 @@ if __name__ == "__main__":
 
     model_random_seed = int(args.model_random_seed)
 
-    attention_layers = int(args.attention_layers)
     attention_activation = args.attention_activation
     pos_enc_type = args.pos_enc_type
 
@@ -138,8 +136,6 @@ if __name__ == "__main__":
         + str(data_random_seed)
         + "_"
         + str(model_random_seed)
-        + "_"
-        + str(attention_layers)
         + "_"
         + str(attention_activation)
         + "_"
@@ -206,7 +202,6 @@ if __name__ == "__main__":
         neuron_num=neuron_num,
         num_cell_types=4,
         window_size=window_size,
-        attention_layers=attention_layers,
         learning_rate=learning_rate,
         scheduler=scheduler,
         pos_enc_type=pos_enc_type,

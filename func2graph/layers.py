@@ -288,7 +288,6 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
 
     def forward(self, x, e):
 
-        e = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
         x_e = torch.cat((x, e), dim=-1)
 
         batch_size, n, t = x.shape

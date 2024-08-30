@@ -237,6 +237,8 @@ class Causal_Temporal_Map_Attention(nn.Module):
 
         out = einsum("b n m, b m t -> b n t", attn, v)
 
+        # out = out + x_e       ################### residual connection
+
         e_repeat = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
         attn3 = einsum("b n e, b m e -> b n m", self.W_Q_W_KT(e_repeat), e_repeat)
 
@@ -308,6 +310,8 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
 
         v = x  # identity mapping
         out = einsum("b n m, b m t -> b n t", attn, v)
+
+        out = out + x   ############################################## Residual connection
 
         if self.prediction_mode == True:
             return out, attn, attn3

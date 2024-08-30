@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser.add_argument("--scheduler", default="plateau")    # "none" or "plateau"
     parser.add_argument("--weight_decay", default=0)
 
-    parser.add_argument("--activation_type", default="tanh")   # "tanh" or "exp"
+    parser.add_argument("--activation_type", default="tanh")   # "tanh" or "exp" or "none"
 
     args = parser.parse_args()
 

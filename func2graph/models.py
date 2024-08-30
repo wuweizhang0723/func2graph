@@ -360,7 +360,10 @@ class Base_3(pl.LightningModule):
         constraint_loss = F.gaussian_nll_loss(neuron_level_attention, expanded_cell_type_level_constraint, reduction="mean", var=var_constraint)
 
         if self.hparams.loss_function == "mse":
-            loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
+            if self.hparams.l1_on_causal_temporal_map != 0:
+                loss = F.mse_loss(pred, target, reduction="mean") + self.hparams.l1_on_causal_temporal_map * sum([p.abs().sum() for p in self.attentionlayers[0][0].W_Q_W_KT.parameters()])
+            else:
+                loss = F.mse_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "poisson":
             loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
         elif self.hparams.loss_function == "gaussian":
@@ -429,7 +432,6 @@ class Attention_With_Constraint_sim(Base_3):
         window_size=200,
         learning_rate=1e-4,
         scheduler="plateau",
-        pos_enc_type="lookup_table",  # "lookup_table" or "none"
         predict_window_size=1,
         loss_function = "mse", # "mse" or "poisson" or "gaussian"
         attention_activation = "none", # "softmax" or "sigmoid" or "tanh", "none"
@@ -443,11 +445,10 @@ class Attention_With_Constraint_sim(Base_3):
     ):
         super().__init__()
         self.save_hyperparameters()
+        torch.manual_seed(model_random_seed)
 
         self.predict_window_size = predict_window_size
         self.neuron_num = neuron_num
-
-        torch.manual_seed(model_random_seed)
 
         # k * k matrix constraint
         self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
@@ -456,23 +457,17 @@ class Attention_With_Constraint_sim(Base_3):
 
         # Attention
 
-        self.pos_enc_type = pos_enc_type
-        if pos_enc_type == "lookup_table":
-            self.embedding_table = nn.Embedding(
-                num_embeddings=neuron_num, embedding_dim=hidden_size_1
-            )
-            dim_in = hidden_size_1
-            self.layer_norm = nn.LayerNorm(dim_in)
-        else:
-            dim_in = hidden_size_1
-
-        dim_in = hidden_size_1
+        self.embedding_table = nn.Embedding(
+            num_embeddings=neuron_num, embedding_dim=hidden_size_1
+        )
+        dim_X = hidden_size_1
+        # self.layer_norm = nn.LayerNorm(dim_in) The first layernorm is in Causal_Temporal_Map_Attention
 
         self.attentionlayers = nn.ModuleList()
         self.attentionlayers.append(
             nn.Sequential(
                 Causal_Temporal_Map_Attention(
-                    dim=dim_in,  # the last dimension of input
+                    dim=dim_X,  # the last dimension of input
                     prediction_mode=True,
                     activation = attention_activation,
                     causal_temporal_map = causal_temporal_map,
@@ -482,13 +477,13 @@ class Attention_With_Constraint_sim(Base_3):
         )
         self.attentionlayers.append(
             nn.Sequential(
-                nn.LayerNorm(dim_in),
+                nn.LayerNorm(dim_X),
             )
         )
 
         self.out_layer = out_layer
         if out_layer == True:
-            self.out = nn.Linear(dim_in, predict_window_size, bias=False)
+            self.out = nn.Linear(dim_X, predict_window_size, bias=False)
 
     def forward(self, x): # x: batch_size * (neuron_num*time)
 
@@ -509,10 +504,106 @@ class Attention_With_Constraint_sim(Base_3):
 
 
 
+# E_concat model for simulation data
+class Attention_With_Constraint_2_sim(Base_3):
+    def __init__(
+        self,
+        model_random_seed=42,
+        neuron_num=200,
+        num_cell_types=4,
+        window_size=200,
+        learning_rate=1e-4,
+        scheduler="plateau",
+        predict_window_size=1,
+        loss_function="mse", # "mse" or "poisson" or "gaussian"
+        attention_activation="none", # "softmax" or "sigmoid" or "tanh", "none"
+        weight_decay=0,
+        causal_temporal_map='none',  # 'none', 'off_diagonal', 'lower_triangle'
+        causal_temporal_map_diff=1,
+        l1_on_causal_temporal_map=0,
+        constraint_loss_weight=0,
+        constraint_var=1,
+        out_layer=False,
+        dim_E=100,   ##############################
+        layerNorm_x_e=True,   ##############################
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+        torch.manual_seed(model_random_seed)
+
+        self.predict_window_size = predict_window_size
+        self.neuron_num = neuron_num
+
+        # k * k matrix constraint
+        self.cell_type_level_constraint = nn.Parameter(torch.FloatTensor(num_cell_types, num_cell_types).uniform_(-1, 1))
+
+        hidden_size_1 = window_size - predict_window_size
+
+        # Attention
+
+        self.embedding_table = nn.Embedding(
+            num_embeddings=neuron_num, embedding_dim=dim_E
+        )
+        dim_X = hidden_size_1
+        self.layerNorm_x_e = layerNorm_x_e
+        if layerNorm_x_e:
+            self.layer_norm = nn.LayerNorm(dim_X+dim_E)
+        else:
+            self.layer_norm = nn.LayerNorm(dim_X)
+
+        self.attentionlayers = nn.ModuleList()
+        self.attentionlayers.append(
+            nn.Sequential(
+                Causal_Temporal_Map_Attention_2(
+                    dim_X=dim_X,
+                    dim_E=dim_E,
+                    prediction_mode=True,
+                    causal_temporal_map=causal_temporal_map,
+                    diff=causal_temporal_map_diff,
+                ),
+                nn.LayerNorm(dim_X),
+            )
+        )
+
+        self.out_layer = out_layer
+        if out_layer == True:
+            self.out = nn.Linear(dim_X, predict_window_size, bias=False)
+
+    def forward(self, x):
+
+        idx = torch.arange(x.shape[1]).to(x.device)
+        e = self.embedding_table(idx)
+        e = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
+
+        if self.layerNorm_x_e:
+            x_e = self.layer_norm(torch.cat((x, e), dim=-1))
+            # Split x and e
+            x = x_e[:, :, :x.shape[-1]]
+            e = x_e[:, :, x.shape[-1]:]
+        else:
+            x = self.layer_norm(x)
+
+        attention_results = []
+        attention3_results = []
+        x, attn, attn3 = self.attentionlayers[0][0](x, e)
+        attention_results.append(attn)
+        attention3_results.append(attn3)
+
+        x = self.attentionlayers[0][1](x)
+
+        if self.out_layer == True:
+            return self.out(x), attention_results[0], self.cell_type_level_constraint
+        else:
+            return x[:, :, -1*self.predict_window_size:], attention_results[0], self.cell_type_level_constraint
+
+
+
+
+
 
 ##############################################################################################################
 ##############################################################################################################
-## For Attention with Constraint Model
+## Attention with Constraint Model for Mouse Data
 ##############################################################################################################
 ##############################################################################################################
 
@@ -738,23 +829,22 @@ class Attention_With_Constraint(Base_2):
         self,
         num_unqiue_neurons,
         num_cell_types,
-        model_type="Attention_With_Constraint",
         model_random_seed=42,
         window_size=200,
         h_layers_1=2,
         dim_key=64,   # Attention
         learning_rate=1e-4,
         scheduler="cycle",
-        predict_window_size = 1,
-        loss_function = "mse", # "mse" or "poisson" or "gaussian"
-        log_input = False,
-        attention_activation = "none", # "softmax" or "sigmoid" or "tanh"
-        weight_decay = 0,
-        causal_temporal_map = 'none',  # 'none', 'off_diagonal', 'lower_triangle'
-        causal_temporal_map_diff = 1,
-        l1_on_causal_temporal_map = 0,
-        constraint_loss_weight = 0,
-        constraint_var = 1,
+        predict_window_size=1,
+        loss_function="mse", # "mse" or "poisson" or "gaussian"
+        log_input=False,
+        attention_activation="none", # "softmax" or "sigmoid" or "tanh"
+        weight_decay=0,
+        causal_temporal_map='none',  # 'none', 'off_diagonal', 'lower_triangle'
+        causal_temporal_map_diff=1,
+        l1_on_causal_temporal_map=0,
+        constraint_loss_weight=0,
+        constraint_var=1,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -816,9 +906,8 @@ class Attention_With_Constraint(Base_2):
         attention_results.append(attn)
         attention3_results.append(attn3)
 
+        # Second layernorm
         output = self.attentionlayers[1][0](output)
-
-        # output = output + (x+e)       ################### residual connection
 
         # x = self.out(x)
 
@@ -837,28 +926,30 @@ class Attention_With_Constraint(Base_2):
     
 
 
-
+#####################################################
+# E_concat model for mouse data
+#####################################################
 
 class Attention_With_Constraint_2(Base_2):
     def __init__(
         self,
         num_unqiue_neurons,
         num_cell_types,
-        model_type="Attention_With_Constraint_2",
         model_random_seed=42,
         window_size=200,
         predict_window_size = 1,
         dropout=0.2,
         learning_rate=1e-4,
         scheduler="cycle",
-        loss_function = "mse", # "mse" or "poisson" or "gaussian"
-        weight_decay = 0,
-        causal_temporal_map = 'none',  # 'none', 'off_diagonal', 'lower_triangle'
-        causal_temporal_map_diff = 1,
-        l1_on_causal_temporal_map = 0,
-        constraint_loss_weight = 0,
-        constraint_var = 1,
-        dim_E = 128,
+        loss_function="mse", # "mse" or "poisson" or "gaussian"
+        weight_decay=0,
+        causal_temporal_map='none',  # 'none', 'off_diagonal', 'lower_triangle'
+        causal_temporal_map_diff=1,
+        l1_on_causal_temporal_map=0,
+        constraint_loss_weight=0,
+        constraint_var=1,
+        dim_E=30,
+        layerNorm_x_e=True,   ##############################
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -877,7 +968,11 @@ class Attention_With_Constraint_2(Base_2):
             num_embeddings=num_unqiue_neurons, embedding_dim=dim_E   # global unique neuron lookup table
         )
 
-        self.layer_norm = nn.LayerNorm(dim_X)
+        self.layerNorm_x_e = layerNorm_x_e
+        if layerNorm_x_e:
+            self.layer_norm = nn.LayerNorm(dim_X+dim_E)
+        else:
+            self.layer_norm = nn.LayerNorm(dim_X)
 
         self.attentionlayers = nn.ModuleList()
         self.attentionlayers.append(
@@ -899,8 +994,17 @@ class Attention_With_Constraint_2(Base_2):
         # self.out = nn.Parameter(torch.FloatTensor(dim_X, predict_window_size).uniform_(0, 1))
 
     def forward(self, x, neuron_ids): # x: batch_size * (neuron_num*time), neuron_ids: batch_size * neuron_num
+    
         e = self.embedding_table(neuron_ids[0])
-        x = self.layer_norm(x)
+        e = e.repeat(x.shape[0],1,1)  # (m, e) to (b, m, e)
+
+        if self.layerNorm_x_e:
+            x_e = self.layer_norm(torch.cat((x, e), dim=-1))
+            # Split x and e
+            x = x_e[:, :, :x.shape[-1]]
+            e = x_e[:, :, x.shape[-1]:]
+        else:
+            x = self.layer_norm(x)
 
         attention_results = []
         attention3_results = []
@@ -911,6 +1015,6 @@ class Attention_With_Constraint_2(Base_2):
         x = self.attentionlayers[0][1](x)
 
         batch_neuron_num = attention_results[0].shape[-1]
-        # self.out.weight.data = self.out_relu(self.out.weight.data)
         return x[:, :, -1*self.predict_window_size:], attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint, attention3_results[0].view(-1, batch_neuron_num, batch_neuron_num)
+        # self.out.weight.data = self.out_relu(self.out.weight.data)
         # return self.out(x), attention_results[0].view(-1, batch_neuron_num, batch_neuron_num), self.cell_type_level_constraint, attention3_results[0].view(-1, batch_neuron_num, batch_neuron_num)

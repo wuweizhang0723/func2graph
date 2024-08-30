@@ -214,7 +214,7 @@ class GLM_sim(Base_2):
         scheduler="cycle",
         loss_function="mse",   # mse
         weight_decay=0,
-        activation_type="tanh",   # tanh, exp, sigmoid
+        activation_type="tanh",   # tanh, exp, sigmoid, none
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -237,6 +237,8 @@ class GLM_sim(Base_2):
             x = torch.exp(x)
         elif self.activation_type == "sigmoid":
             x = torch.sigmoid(x)
+        elif self.activation_type == "none":
+            pass
         return x
     
 
@@ -356,3 +358,5 @@ class GLM_M(Base_3):
             return self.activation(output + self.b)
         elif self.activation_type == "exp":
             return torch.exp(output + self.b)
+        elif self.activation_type == "none":
+            return output + self.b

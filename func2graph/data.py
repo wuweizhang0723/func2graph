@@ -87,7 +87,7 @@ def generate_simulation_data(
     batch_size=32,
     num_workers: int=6, 
     split_ratio=0.8,
-    task_type="prediction",    # "prediction" or "GLM_sim_exp" or "GLM_sim_tanh"
+    task_type="prediction",    # "prediction" or "GLM_sim_exp" or "GLM_sim_tanh" or "GLM_sim_none"
     predict_window_size=100,
     data_type="wuwei",         #"ziyu", "wuwei"
     spatial_partial_measurement=200,  # the number of neurons that is measured, between 0 and neuron_num
@@ -182,7 +182,7 @@ def generate_simulation_data(
         train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
         val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
 
-    elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh"):  
+    elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh") or (task_type == "GLM_sim_none"): 
 
         # Baseline_2 takes in activity from one previous time step to predict for the next time step
         train_x = train_data[:, :-1].transpose(0, 1)

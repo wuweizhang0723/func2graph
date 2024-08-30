@@ -1,12 +1,10 @@
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
 import argparse
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
-from pytorch_lightning import loggers
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -23,7 +21,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Model Hyperparameters")
 
     parser.add_argument(
-        "--model_type", type=str, default="AwC_sim", help="Model type"
+        "--model_type", type=str, default="Attention_With_Constraint_sim", help="Model type"
     )
     parser.add_argument("--out_folder", help="the output folder")
 
@@ -67,6 +65,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--out_layer", default=False)
 
+    parser.add_argument("--dim_E", default=20)
+
 
     args = parser.parse_args()
 
@@ -100,7 +100,6 @@ if __name__ == "__main__":
     model_random_seed = int(args.model_random_seed)
 
     attention_activation = args.attention_activation
-    pos_enc_type = args.pos_enc_type
 
     causal_temporal_map = args.causal_temporal_map
     causal_temporal_map_diff = int(args.causal_temporal_map_diff)
@@ -116,10 +115,16 @@ if __name__ == "__main__":
 
     out_layer = True if args.out_layer == "True" else False
 
+    dim_E = int(args.dim_E)
+
 
     output_path = (
         out_folder
         + model_type
+        + "_"
+        + str(weight_scale)
+        + "_"
+        + str(init_scale)
         + "_"
         + str(tau)
         + "_"
@@ -138,8 +143,6 @@ if __name__ == "__main__":
         + str(model_random_seed)
         + "_"
         + str(attention_activation)
-        + "_"
-        + str(pos_enc_type)
         + "_"
         + str(causal_temporal_map)
         + "_"
@@ -160,6 +163,8 @@ if __name__ == "__main__":
         + str(constraint_loss_weight)
         + "_"
         + str(out_layer)
+        + "_"
+        + str(dim_E)
     )
 
     checkpoint_path = output_path
@@ -197,25 +202,46 @@ if __name__ == "__main__":
     if spatial_partial_measurement != neuron_num:
         neuron_num = spatial_partial_measurement
 
-    single_model = models.Attention_With_Constraint_sim(
-        model_random_seed=model_random_seed,
-        neuron_num=neuron_num,
-        num_cell_types=4,
-        window_size=window_size,
-        learning_rate=learning_rate,
-        scheduler=scheduler,
-        pos_enc_type=pos_enc_type,
-        predict_window_size=predict_window_size,
-        loss_function = loss_function,
-        attention_activation = attention_activation,
-        weight_decay = weight_decay,
-        causal_temporal_map = causal_temporal_map,
-        causal_temporal_map_diff = causal_temporal_map_diff,
-        l1_on_causal_temporal_map = l1_on_causal_temporal_map,
-        constraint_loss_weight = constraint_loss_weight,
-        constraint_var = constraint_var,
-        out_layer = out_layer,
-    )
+    if model_type == "Attention_With_Constraint_sim":
+        single_model = models.Attention_With_Constraint_sim(
+            model_random_seed=model_random_seed,
+            neuron_num=neuron_num,
+            num_cell_types=4,
+            window_size=window_size,
+            learning_rate=learning_rate,
+            scheduler=scheduler,
+            predict_window_size=predict_window_size,
+            loss_function=loss_function,
+            attention_activation=attention_activation,
+            weight_decay=weight_decay,
+            causal_temporal_map=causal_temporal_map,
+            causal_temporal_map_diff=causal_temporal_map_diff,
+            l1_on_causal_temporal_map=l1_on_causal_temporal_map,
+            constraint_loss_weight=constraint_loss_weight,
+            constraint_var=constraint_var,
+            out_layer=out_layer,
+        )
+
+    elif model_type == "Attention_With_Constraint_2_sim":
+        single_model = models.Attention_With_Constraint_2_sim(
+            model_random_seed=model_random_seed,
+            neuron_num=neuron_num,
+            num_cell_types=4,
+            window_size=window_size,
+            learning_rate=learning_rate,
+            scheduler=scheduler,
+            predict_window_size=predict_window_size,
+            loss_function=loss_function,
+            attention_activation=attention_activation,
+            weight_decay=weight_decay,
+            causal_temporal_map=causal_temporal_map,
+            causal_temporal_map_diff=causal_temporal_map_diff,
+            l1_on_causal_temporal_map=l1_on_causal_temporal_map,
+            constraint_loss_weight=constraint_loss_weight,
+            constraint_var=constraint_var,
+            out_layer=out_layer,
+            dim_E=dim_E,         ###############################
+        )
 
     es = EarlyStopping(monitor="VAL_sum_loss", patience=20)  ###########
     checkpoint_callback = ModelCheckpoint(
@@ -283,8 +309,8 @@ if __name__ == "__main__":
     plt.close()
 
     # plot the prediction and groundtruth curve for 5 neurons
-    for i in range(10):
-        plt.subplot(10, 1, i+1)
+    for i in range(5):
+        plt.subplot(5, 1, i+1)
         print("hhhh " + str(predictions[0].shape))
         plt.plot(predictions[:100, i, 0], label="Prediction")
         plt.plot(ground_truths[:100, i, 0], label="Ground Truth")
@@ -392,29 +418,30 @@ if __name__ == "__main__":
         # spearman_corr_prob_prior_KK = stats.spearmanr(cutoff_matrix.flatten(), prior_KK_prob.flatten())[0]
 
         ############################################################# TT matrix evaluation
+        
+        if model_type == "Attention_With_Constraint_sim":
+            TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
+            TT = TT.T
 
-        TT = trained_model.attentionlayers[0][0].W_Q_W_KT.weight.cpu().detach().numpy()
-        TT = TT.T
+            plt.imshow(TT, cmap='bone')
+            plt.title("W_Q @ W_K^T")
+            plt.colorbar()
+            plt.savefig(output_path + "/TT.png")
+            plt.close()
 
-        plt.imshow(TT, cmap='bone')
-        plt.title("W_Q @ W_K^T")
-        plt.colorbar()
-        plt.savefig(output_path + "/TT.png")
-        plt.close()
+            # Diagonal
+            l = list()
+            for i in range(int(tau), TT.shape[0]):
+                l.append(TT[i][i-tau])
 
-        # Diagonal
-        l = list()
-        for i in range(int(tau), TT.shape[0]):
-            l.append(TT[i][i-tau])
+            plt.scatter(range(len(l)), l, s=1)
+            plt.xlabel("Index")
+            plt.ylabel("Value")
+            plt.title("Diagonal")
+            plt.savefig(output_path + "/TT_diagonal.png")
+            plt.close()
 
-        plt.scatter(range(len(l)), l, s=1)
-        plt.xlabel("Index")
-        plt.ylabel("Value")
-        plt.title("Diagonal")
-        plt.savefig(output_path + "/TT_diagonal.png")
-        plt.close()
-
-        np.save(output_path + "/TT.npy", TT)
+            np.save(output_path + "/TT.npy", TT)
 
         ############################################################# attn3 term = (E @ TT @ E^T)
 

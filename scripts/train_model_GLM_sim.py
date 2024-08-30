@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument("--scheduler", default="plateau")    # "none" or "plateau"
     parser.add_argument("--weight_decay", default=0)
 
-    parser.add_argument("--activation_type", default="tanh")   # exp
+    parser.add_argument("--activation_type", default="tanh")   # exp, none
 
 
     args = parser.parse_args()
@@ -97,6 +97,10 @@ if __name__ == "__main__":
         out_folder
         + model_type
         + "_"
+        + str(weight_scale)
+        + "_"
+        + str(init_scale)
+        + "_"
         + str(tau)
         + "_"
         + str(window_size)
@@ -129,6 +133,8 @@ if __name__ == "__main__":
         task_type = "GLM_sim_tanh"
     elif activation_type == "exp":
         task_type = "GLM_sim_exp"
+    elif activation_type == "none":
+        task_type = "GLM_sim_none"
 
     data_result = data.generate_simulation_data(
         neuron_num=neuron_num,
@@ -147,8 +153,7 @@ if __name__ == "__main__":
     )
     if data_type == "wuwei":
         # cell_type_ids records the cell type of each neuron
-        trainloader, validloader, weight_matrix, b, cell_type_ids, cell_type_order, cell_type_count = data_result
-        derivative_b = 1 - torch.tanh(b)**2
+        trainloader, validloader, weight_matrix, cell_type_ids, cell_type_order, cell_type_count = data_result
         # weight_matrix = (derivative_b.view(-1,1) * weight_matrix).detach().numpy()
         weight_matrix = weight_matrix.detach().numpy()
     elif data_type == "ziyu":

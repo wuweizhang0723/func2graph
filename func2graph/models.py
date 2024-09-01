@@ -316,7 +316,7 @@ class Base_3(pl.LightningModule):
                     optimizer,
                     patience=6,
                 ),
-                "monitor": str(self.hparams.loss_function) + " val_loss",
+                "monitor": "VAL_sum_loss",
             }
         elif self.hparams.scheduler == "cycle":
             lr_scheduler = {

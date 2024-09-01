@@ -80,6 +80,7 @@ def generate_simulation_data(
     tau=1,
     weight_scale=0.2,
     init_scale=0.2,
+    error_scale=1,
     total_time=30000,
     data_random_seed=42,
     weight_type="cell_type",
@@ -87,7 +88,7 @@ def generate_simulation_data(
     batch_size=32,
     num_workers: int=6, 
     split_ratio=0.8,
-    task_type="prediction",    # "prediction" or "GLM_sim_exp" or "GLM_sim_tanh" or "GLM_sim_none"
+    task_type="prediction",    # "prediction" or "GLM_sim_exp" or "GLM_sim_tanh" or "GLM_sim_none" or "GLM_sim_sigmoid"
     predict_window_size=100,
     data_type="wuwei",         #"ziyu", "wuwei"
     spatial_partial_measurement=200,  # the number of neurons that is measured, between 0 and neuron_num
@@ -124,6 +125,7 @@ def generate_simulation_data(
             tau=tau,  
             weight_scale=weight_scale,
             init_scale=init_scale,
+            error_scale=error_scale,
             total_time=total_time,
             data_random_seed=data_random_seed,
             weight_type=weight_type
@@ -182,7 +184,7 @@ def generate_simulation_data(
         train_dataset = TensorDataset(train_data[:, :, :-predict_window_size], train_data[:, :, -predict_window_size:])
         val_dataset = TensorDataset(val_data[:, :, :-predict_window_size], val_data[:, :, -predict_window_size:])
 
-    elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh") or (task_type == "GLM_sim_none"): 
+    elif (task_type == "GLM_sim_exp") or (task_type == "GLM_sim_tanh") or (task_type == "GLM_sim_none") or (task_type == "GLM_sim_sigmoid"):
 
         # Baseline_2 takes in activity from one previous time step to predict for the next time step
         train_x = train_data[:, :-1].transpose(0, 1)
@@ -190,17 +192,17 @@ def generate_simulation_data(
         val_x = val_data[:, :-1].transpose(0, 1)
         val_y = val_data[:, 1:].transpose(0, 1)
 
-        if task_type == "GLM_sim_exp":    
-            # find the min value and if it is negative, add abs(min val)
-            min_val = torch.min(data)
-            if min_val < 0:
-                train_x = torch.abs(min_val) + train_x
-                train_y = torch.abs(min_val) + train_y
-                val_x = torch.abs(min_val) + val_x
-                val_y = torch.abs(min_val) + val_y
+        # if (task_type == "GLM_sim_exp"):    
+        #     # find the min value and if it is negative, add abs(min val)
+        #     min_val = torch.min(data)
+        #     if min_val < 0:
+        #         train_x = torch.abs(min_val) + train_x
+        #         train_y = torch.abs(min_val) + train_y
+        #         val_x = torch.abs(min_val) + val_x
+        #         val_y = torch.abs(min_val) + val_y
             
-            print('min_val_now: ', torch.min(train_x), torch.min(train_y), torch.min(val_x), torch.min(val_y))
-            print('max_val_now: ', torch.max(train_x), torch.max(train_y), torch.max(val_x), torch.max(val_y))
+        #     print('min_val_now: ', torch.min(train_x), torch.min(train_y), torch.min(val_x), torch.min(val_y))
+        #     print('max_val_now: ', torch.max(train_x), torch.max(train_y), torch.max(val_x), torch.max(val_y))
 
         train_dataset = TensorDataset(train_x, train_y)
         val_dataset = TensorDataset(val_x, val_y)

@@ -31,6 +31,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--weight_scale", default=0.2)
     parser.add_argument("--init_scale", default=0.2)
+    parser.add_argument("--error_scale", default=1)
 
     parser.add_argument("--total_time", help="total time", default=30000)
     parser.add_argument("--data_random_seed", help="data random seed", default=42)
@@ -81,6 +82,7 @@ if __name__ == "__main__":
 
     weight_scale = float(args.weight_scale)
     init_scale = float(args.init_scale)
+    error_scale = float(args.error_scale)
 
     total_time = int(args.total_time)
     data_random_seed = int(args.data_random_seed)
@@ -125,6 +127,8 @@ if __name__ == "__main__":
         + str(weight_scale)
         + "_"
         + str(init_scale)
+        + "_"
+        + str(error_scale)
         + "_"
         + str(tau)
         + "_"
@@ -175,6 +179,7 @@ if __name__ == "__main__":
         tau=tau,
         weight_scale=weight_scale,
         init_scale=init_scale,
+        error_scale=error_scale,
         total_time=total_time,
         data_random_seed=data_random_seed,
         weight_type=weight_type,

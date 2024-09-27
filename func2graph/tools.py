@@ -379,7 +379,7 @@ def assign_unique_cell_type_ids(all_sessions_original_cell_type, num_neurons_per
 
 
 
-def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessions_new_cell_type_id, window_size):
+def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessions_new_cell_type_id, all_sessions_state, window_size):
     """
     (can be from TRAIN or VAL set)
     all_sessions_acitvity: a list of sessions activity, each session is a 2D array of shape num_neurons x num_frames
@@ -398,6 +398,7 @@ def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessio
     all_sessions_activity_windows = []
     all_sessions_new_UniqueID_windows = []
     all_sessions_new_cell_type_id_windows = []
+    all_sessions_state_windows = []
 
     for i in range(len(all_sessions_acitvity)):
         num_neurons = all_sessions_acitvity[i].shape[0]
@@ -422,7 +423,13 @@ def sliding_windows(all_sessions_acitvity, all_sessions_new_UniqueID, all_sessio
             cell_type_id_windows[j] = all_sessions_new_cell_type_id[i]
         all_sessions_new_cell_type_id_windows.append(cell_type_id_windows)
 
-    return all_sessions_activity_windows, all_sessions_new_UniqueID_windows, all_sessions_new_cell_type_id_windows
+        # state
+        state_windows = np.zeros((num_windows, window_size))
+        for j in range(num_windows):
+            state_windows[j] = all_sessions_state[i][j:j+window_size]
+        all_sessions_state_windows.append(state_windows)
+
+    return all_sessions_activity_windows, all_sessions_new_UniqueID_windows, all_sessions_new_cell_type_id_windows, all_sessions_state_windows
 
 
 

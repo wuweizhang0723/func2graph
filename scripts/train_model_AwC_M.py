@@ -243,11 +243,13 @@ if __name__ == "__main__":
     # neuron_embeddings = train_results[0][3]
     # predictions = []
     # ground_truths = []
-    attentions = []
+    attentions = []  # list of (N * neuron_num * neuron_num)
     # attentions_3 = []
+    attentions_by_state = []  # list of (3 * N * neuron_num * neuron_num)
 
-    all_sessions_avg_attention_NN = []
+    all_sessions_avg_attention_NN = []  # list of (neuron_num * neuron_num)
     # all_sessions_avg_attention_NN_3 = []
+    all_sessions_avg_attention_NN_by_state = []  # list of (3 * neuron_num * neuron_num)
 
     index = 0
     num_session = len(num_batch_per_session_TRAIN)
@@ -256,11 +258,13 @@ if __name__ == "__main__":
         # ground_truths.append([])
         attentions.append([])
         # attentions_3.append([])
+        attentions_by_state.append([[], [], []]) # 3 states for each session
 
         for j in range(num_batch_per_session_TRAIN[i]):
             x_hat = train_results[index][0]
             x = train_results[index][1]
             attention = train_results[index][2]
+            state = train_results[index][4]
             
             # predictions[i].append(x_hat)
             # ground_truths[i].append(x)
@@ -268,6 +272,10 @@ if __name__ == "__main__":
 
             # attention_3 = train_results[index][3]
             # attentions_3[i].append(attention_3)
+
+            # check if all values in state are the same and get that value
+            if np.all(state == state[0]):
+                attentions_by_state[i][state[0]].append(attention)
             
             index += 1
 
@@ -275,8 +283,19 @@ if __name__ == "__main__":
         # ground_truths[i] = torch.cat(ground_truths[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
         attentions[i] = torch.cat(attentions[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
 
+        attentions_by_state[i][0] = torch.cat(attentions_by_state[i][0], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+        attentions_by_state[i][1] = torch.cat(attentions_by_state[i][1], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+        attentions_by_state[i][2] = torch.cat(attentions_by_state[i][2], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+
         # get average attention across samples in each session
         all_sessions_avg_attention_NN.append(np.mean(attentions[i], axis=0))   # neuron_num * neuron_num
+
+        all_sessions_avg_attention_NN_by_state.append([])
+        all_sessions_avg_attention_NN_by_state[i].append(np.mean(attentions_by_state[i][0], axis=0))   # neuron_num * neuron_num
+        all_sessions_avg_attention_NN_by_state[i].append(np.mean(attentions_by_state[i][1], axis=0))   # neuron_num * neuron_num
+        all_sessions_avg_attention_NN_by_state[i].append(np.mean(attentions_by_state[i][2], axis=0))   # neuron_num * neuron_num
+
+        all_sessions_avg_attention_NN_by_state[i] = np.stack(all_sessions_avg_attention_NN_by_state[i], axis=0)  # 3 * neuron_num * neuron_num
 
         # attentions_3[i] = torch.cat(attentions_3[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
         # all_sessions_avg_attention_NN_3.append(np.mean(attentions_3[i], axis=0))   # neuron_num * neuron_num
@@ -284,6 +303,71 @@ if __name__ == "__main__":
 
     print('hhhh: ', sessions_2_original_cell_type[0])
     print(len(sessions_2_original_cell_type[0]))
+
+    print('attentions_by_state 0: ', attentions_by_state[0][0].shape)
+    print('attentions_by_state 1: ', attentions_by_state[0][1].shape)
+    print('attentions_by_state 2: ', attentions_by_state[0][2].shape)
+
+    # get all avg attentions from the same state
+    state2all_sessions_avg_attention = [[], [], []]   # 3 * num_session * neuron_num * neuron_num
+    for i in range(3):
+       state2all_sessions_avg_attention[i] = [all_sessions_avg_attention_NN_by_state[j][i] for j in range(num_session)]
+
+    experiment_KK_strength_0 = tools.multisession_NN_to_KK_1(
+        state2all_sessions_avg_attention[0],
+        None,
+        cell_type_order,
+        all_sessions_new_cell_type_id,
+    )
+    experiment_KK_strength_1 = tools.multisession_NN_to_KK_1(
+        state2all_sessions_avg_attention[1],
+        None,
+        cell_type_order,
+        all_sessions_new_cell_type_id,
+    )
+    experiment_KK_strength_2 = tools.multisession_NN_to_KK_1(
+        state2all_sessions_avg_attention[2],
+        None,
+        cell_type_order,
+        all_sessions_new_cell_type_id,
+    )
+
+    eval_cell_type_order = ['EC', 'Pvalb', 'Sst', 'Vip']
+    eval_KK_strength_0 = tools.experiment_KK_to_eval_KK(experiment_KK_strength_0, cell_type_order, eval_cell_type_order)
+    eval_KK_strength_1 = tools.experiment_KK_to_eval_KK(experiment_KK_strength_1, cell_type_order, eval_cell_type_order)
+    eval_KK_strength_2 = tools.experiment_KK_to_eval_KK(experiment_KK_strength_2, cell_type_order, eval_cell_type_order)
+
+    plt.imshow(eval_KK_strength_0, cmap='RdBu_r', interpolation="nearest")
+    plt.colorbar()
+    plt.xlabel("Pre")
+    plt.ylabel("Post")
+    plt.title("eval_KK_strength_0")
+    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    plt.savefig(output_path + "/strength_0.png")
+    plt.close()
+
+    plt.imshow(eval_KK_strength_1, cmap='RdBu_r', interpolation="nearest")
+    plt.colorbar()
+    plt.xlabel("Pre")
+    plt.ylabel("Post")
+    plt.title("eval_KK_strength_1")
+    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    plt.savefig(output_path + "/strength_1.png")
+    plt.close()
+
+    plt.imshow(eval_KK_strength_2, cmap='RdBu_r', interpolation="nearest")
+    plt.colorbar()
+    plt.xlabel("Pre")
+    plt.ylabel("Post")
+    plt.title("eval_KK_strength_2")
+    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    plt.savefig(output_path + "/strength_2.png")
+    plt.close()
+
+
 
 
     ################################### validation result

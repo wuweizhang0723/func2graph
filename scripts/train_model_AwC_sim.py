@@ -43,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument("--task_type", default="prediction")  # "reconstruction" or "prediction" or "baseline_2"
     parser.add_argument("--predict_window_size", default=100)
 
-    parser.add_argument("--data_type", default="wuwei")   # "ziyu"
+    parser.add_argument("--data_type", default="wuwei")   # "ziyu", "Fiete"
     parser.add_argument("--spatial_partial_measurement", default=200)   # between 0 and neuron_num
 
     # Model
@@ -198,6 +198,8 @@ if __name__ == "__main__":
     elif data_type == "ziyu":
         trainloader, validloader, weight_matrix = data_result
         weight_matrix = weight_matrix.to_numpy()
+    elif data_type == "Fiete":
+        trainloader, validloader, weight_matrix = data_result
     elif data_type == "c_elegans":
         trainloader, validloader, weight_matrix = data_result
         weight_matrix_E = weight_matrix[0].detach().numpy()
@@ -549,7 +551,7 @@ if __name__ == "__main__":
         # plt.savefig(output_path + "/GT_NN_prob.png")
         # plt.close()
 
-    elif data_type == "ziyu":
+    elif (data_type == "ziyu") or (data_type == "Fiete"):
 
         ############################################################# Strength connection evaluation 
 

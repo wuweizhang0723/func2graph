@@ -119,6 +119,14 @@ def generate_simulation_data(
 
         # W, cell_type_order, cell_type_ids, cell_type_count = tools.construct_weight_matrix_cell_type(neuron_num)
 
+    elif data_type == "Fiete":
+        data = np.load('../data/Fiete/all_spike.npy')
+        data = torch.from_numpy(data).float()
+        W = np.load('../data/Fiete/connectivity.npy')
+
+        total_time = data.shape[1]
+        neuron_num = data.shape[0]
+
     elif data_type == "wuwei":
         simulator = data_simulator(
             neuron_num=neuron_num, 
@@ -213,6 +221,8 @@ def generate_simulation_data(
     if spatial_partial_measurement == neuron_num:
         if data_type == "ziyu":
             return train_dataloader, val_dataloader, W
+        elif data_type == "Fiete":
+            return train_dataloader, val_dataloader, W
         elif data_type == "wuwei":
             return train_dataloader, val_dataloader, simulator.W_ij, simulator.cell_type_ids, simulator.cell_type_order, simulator.cell_type_count
     else:
@@ -278,7 +288,7 @@ def load_mouse_data_session(directory, date_exp, input_setting, normalization):
     else:
         raise ValueError("Invalid normalization")
 
-    return np.transpose(activity_norm), frame_times, UniqueID.reshape(-1), neuron_ttypes
+    return np.transpose(activity_norm), frame_states, frame_times, UniqueID.reshape(-1), neuron_ttypes
 
 
 
@@ -301,6 +311,7 @@ class Mouse_All_Sessions_Dataset(TensorDataset):
         all_sessions_activity_windows,  # list of 3d tensors, each tensor is a session (num_window x n x window_size)) 
         all_sessions_new_UniqueID_windows,  # list of 2d tensors, each tensor is a session (num_window x n)
         all_sessions_new_cell_type_id_windows, # list of 2d tensors, each tensor is a session (num_window x n)
+        all_sessions_state_windows,  # list of 2d tensors, each tensor is a session (num_window x window_size)
         batch_size=3,                      # real batch size !!!!!!!!!!!!!!!!!
     ):
         self.num_batch_per_session = [session.shape[0] // batch_size for session in all_sessions_activity_windows]
@@ -308,14 +319,16 @@ class Mouse_All_Sessions_Dataset(TensorDataset):
         self.all_batch = []
         self.all_batch_neuron_ids = []
         self.all_batch_cell_type_ids = []
+        self.all_batch_states = []
         for i in range(len(self.num_batch_per_session)):      # for each session
             for j in range(self.num_batch_per_session[i]):      # for each batch
                 self.all_batch.append(torch.Tensor(all_sessions_activity_windows[i][j*batch_size:(j+1)*batch_size]).float())
                 self.all_batch_neuron_ids.append(torch.Tensor(all_sessions_new_UniqueID_windows[i][j*batch_size:(j+1)*batch_size]).int())
                 self.all_batch_cell_type_ids.append(torch.Tensor(all_sessions_new_cell_type_id_windows[i][j*batch_size:(j+1)*batch_size]).int())
+                self.all_batch_states.append(torch.Tensor(all_sessions_state_windows[i][j*batch_size:(j+1)*batch_size]).int())
 
     def __getitem__(self, index):
-        return self.all_batch[index], self.all_batch_neuron_ids[index], self.all_batch_cell_type_ids[index]
+        return self.all_batch[index], self.all_batch_neuron_ids[index], self.all_batch_cell_type_ids[index], self.all_batch_states[index]
 
     def __len__(self):
         return len(self.all_batch)
@@ -340,24 +353,29 @@ def generate_mouse_all_sessions_data(
 
     all_sessions_original_UniqueID = []
     all_sessions_original_cell_type = []
+
     all_sessions_acitvity_TRAIN = []   # first 80% of the time
     all_sessions_acitvity_VAL = []
+
+    all_sessions_state_TRAIN = []
+    all_sessions_state_VAL = []
+
     num_neurons_per_session = []
-
     sessions_2_original_cell_type = []
-
     all_sessions_activity_flatten = []
 
     for i in range(len(input_sessions_file_path)):
         date_exp = input_sessions_file_path[i]['date_exp']
         input_setting = input_sessions_file_path[i]['input_setting']
-        activity, frame_times, UniqueID, neuron_ttypes = load_mouse_data_session(
+        activity, frame_states, frame_times, UniqueID, neuron_ttypes = load_mouse_data_session(
             directory, date_exp, input_setting, normalization="no"
         )
 
         all_sessions_original_UniqueID.append(UniqueID)
         all_sessions_acitvity_TRAIN.append(activity[:, :int(activity.shape[1]*split_ratio)])
         all_sessions_acitvity_VAL.append(activity[:, int(activity.shape[1]*split_ratio):])
+        all_sessions_state_TRAIN.append(frame_states[:int(activity.shape[1]*split_ratio)])
+        all_sessions_state_VAL.append(frame_states[int(activity.shape[1]*split_ratio):])
         num_neurons_per_session.append(activity.shape[0])
         all_sessions_activity_flatten.append(activity.flatten())
 
@@ -396,12 +414,12 @@ def generate_mouse_all_sessions_data(
     ##############################################
 
     # For TRAIN
-    all_sessions_activity_windows_TRAIN, all_sessions_new_UniqueID_windows_TRAIN, all_sessions_new_cell_type_id_window_TRAIN = tools.sliding_windows(
-        all_sessions_acitvity_TRAIN, all_sessions_new_UniqueID, all_sessions_new_cell_type_id, window_size=window_size
+    all_sessions_activity_windows_TRAIN, all_sessions_new_UniqueID_windows_TRAIN, all_sessions_new_cell_type_id_window_TRAIN, all_sessions_state_windows_TRAIN = tools.sliding_windows(
+        all_sessions_acitvity_TRAIN, all_sessions_new_UniqueID, all_sessions_new_cell_type_id, all_sessions_state_TRAIN, window_size=window_size
     )
     # For VAL
-    all_sessions_activity_windows_VAL, all_sessions_new_UniqueID_windows_VAL, all_sessions_new_cell_type_id_window_VAL = tools.sliding_windows(
-        all_sessions_acitvity_VAL, all_sessions_new_UniqueID, all_sessions_new_cell_type_id, window_size=window_size
+    all_sessions_activity_windows_VAL, all_sessions_new_UniqueID_windows_VAL, all_sessions_new_cell_type_id_window_VAL, all_sessions_state_windows_VAL = tools.sliding_windows(
+        all_sessions_acitvity_VAL, all_sessions_new_UniqueID, all_sessions_new_cell_type_id, all_sessions_state_VAL, window_size=window_size
     )
 
     ##############################################
@@ -412,12 +430,14 @@ def generate_mouse_all_sessions_data(
         all_sessions_activity_windows_TRAIN, 
         all_sessions_new_UniqueID_windows_TRAIN, 
         all_sessions_new_cell_type_id_window_TRAIN, 
+        all_sessions_state_windows_TRAIN,
         batch_size=batch_size,        ###### real batch_size!!!
     )
     val_dataset = Mouse_All_Sessions_Dataset(
         all_sessions_activity_windows_VAL, 
         all_sessions_new_UniqueID_windows_VAL, 
         all_sessions_new_cell_type_id_window_VAL, 
+        all_sessions_state_windows_VAL,
         batch_size=batch_size,        ###### real batch_size!!!
     )
 

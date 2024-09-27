@@ -405,7 +405,7 @@ class Base_3(pl.LightningModule):
         if self.hparams.loss_function == "mse":
             loss = F.mse_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "poisson":
-            loss = F.poisson_nll_loss(pred, target, log_input=self.hparams.log_input, reduction="mean")
+            loss = F.poisson_nll_loss(pred, target, reduction="mean")
         elif self.hparams.loss_function == "gaussian":
             var = torch.ones(pred.shape, requires_grad=True).to(pred.device)  ##############################
             loss = F.gaussian_nll_loss(pred, target, reduction="mean", var=var)
@@ -515,7 +515,7 @@ class Attention_With_Constraint_2_sim(Base_3):
         learning_rate=1e-4,
         scheduler="plateau",
         predict_window_size=1,
-        loss_function="mse", # "mse" or "poisson" or "gaussian"
+        loss_function="mse", # "mse" or "poisson"
         attention_activation="none", # "softmax" or "sigmoid" or "tanh", "none"
         weight_decay=0,
         causal_temporal_map='none',  # 'none', 'off_diagonal', 'lower_triangle'
@@ -621,7 +621,6 @@ class Base_2(pl.LightningModule):
         if self.hparams.scheduler == "plateau":
             lr_scheduler = {
                 "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-                    # TODO: add an argument to control the patience
                     optimizer,
                     patience=3,
                 ),
@@ -646,7 +645,7 @@ class Base_2(pl.LightningModule):
         print("self.cell_type_level_constraint gradient: ", self.cell_type_level_constraint.grad)
         print("self.cell_type_level_constraint: ", self.cell_type_level_constraint)
 
-        x, neuron_ids, cell_type_ids = batch         # x is entire window
+        x, neuron_ids, cell_type_ids, state = batch         # x is entire window
         print("unique num cell types: ", np.unique(cell_type_ids[0].clone().detach().cpu().numpy()))
         x = x.squeeze(0)                 # remove the fake batch_size
         neuron_ids = neuron_ids.squeeze(0)
@@ -735,7 +734,7 @@ class Base_2(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
 
-        x, neuron_ids, cell_type_ids = batch         # x is entire window
+        x, neuron_ids, cell_type_ids, state = batch         # x is entire window
         x = x.squeeze(0)                 # remove the fake batch_size
         neuron_ids = neuron_ids.squeeze(0)
         cell_type_ids = cell_type_ids.squeeze(0)
@@ -811,16 +810,17 @@ class Base_2(pl.LightningModule):
         return loss + constraint_loss * self.hparams.constraint_loss_weight
     
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        x, neuron_ids, cell_type_ids = batch         # x is entire window
+        x, neuron_ids, cell_type_ids, state = batch         # x is entire window
         x = x.squeeze(0)                 # remove the fake batch_size
         neuron_ids = neuron_ids.squeeze(0)
         cell_type_ids = cell_type_ids.squeeze(0)
+        state = state.squeeze(0)
 
         # Make the last time step as the target
         target = x[:, :, -1*self.hparams.predict_window_size:].clone()
 
         pred, neuron_level_attention, cell_type_level_constraint, neuron_level_attention3 = self(x[:, :, :-1*self.hparams.predict_window_size], neuron_ids)
-        return pred, target, neuron_level_attention, neuron_level_attention3
+        return pred, target, neuron_level_attention, neuron_level_attention3, state
     
 
 

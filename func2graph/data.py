@@ -370,6 +370,7 @@ def generate_mouse_all_sessions_data(
         activity, frame_states, frame_times, UniqueID, neuron_ttypes = load_mouse_data_session(
             directory, date_exp, input_setting, normalization="no"
         )
+        frame_states = frame_states.flatten()
 
         all_sessions_original_UniqueID.append(UniqueID)
         all_sessions_acitvity_TRAIN.append(activity[:, :int(activity.shape[1]*split_ratio)])

@@ -77,7 +77,7 @@ python train_model_AwC_M.py --out_folder='../output/2019-10-23/' --model_type=At
 # window_size=60, dim_E=30
 python train_model_AwC_M.py --out_folder='../output/AwC_M2/' --model_type=Attention_With_Constraint_2 --input_mouse='SB025' --input_sessions='2019-10-23' --window_size=60 --predict_window_size=1 --normalization=session --model_random_seed=42 --learning_rate=1e-3 --scheduler=plateau --constraint_loss_weight=0 --constraint_var=1 --causal_temporal_map=none --causal_temporal_map_diff=1 --l1_on_causal_temporal_map=0 --dim_E=30
 
-###################################### Simulation Data tau=1, (NeuroAI workshop: weight_scale=1, init_scale=1, error_scale=5)
+###################################### Simulation Data tau=1, (NeuroAI workshop: weight_scale=1, init_scale=1, error_scale=3.5)
 # 1. GLM_sim w/ tanh
 # seed 42
 python train_model_GLM_sim.py --out_folder='../output/5_17_GLM_sim/' --model_type=GLM_sim --data_type=wuwei --weight_scale=1 --init_scale=1 --error_scale=3.5 --tau=1 --weight_type=cell_type --neuron_num=200 --spatial_partial_measurement=200 --predict_window_size=1 --learning_rate=1e-3 --model_random_seed=42 --data_random_seed=42 --scheduler=cycle --weight_decay=0 --activation_type=tanh

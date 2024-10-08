@@ -291,4 +291,9 @@ dependencies:
   - zipp=3.11.0=py39h06a4308_0
   - zlib=1.2.13=h5eee18b_0
   - zstd=1.5.5=hc292b87_0
-prefix: /gscratch/mostafavilab/wz86/miniconda3/envs/func2graph
+  - pip:
+      - joblib==1.4.2
+      - pyinform==0.2.0
+      - scikit-learn==1.5.2
+      - threadpoolctl==3.5.0
+prefix: /home/wz1411/miniconda3/envs/func2graph

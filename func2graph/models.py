@@ -942,6 +942,7 @@ class Attention_With_Constraint_2(Base_2):
         learning_rate=1e-4,
         scheduler="cycle",
         loss_function="mse", # "mse" or "poisson" or "gaussian"
+        attention_activation="none", # "softmax" or "sigmoid" or "tanh"
         weight_decay=0,
         causal_temporal_map='none',  # 'none', 'off_diagonal', 'lower_triangle'
         causal_temporal_map_diff=1,
@@ -981,6 +982,7 @@ class Attention_With_Constraint_2(Base_2):
                     dim_X=dim_X,
                     dim_E=dim_E,
                     prediction_mode=True,
+                    activation=attention_activation,
                     causal_temporal_map = causal_temporal_map,
                     diff = causal_temporal_map_diff,
                 ),

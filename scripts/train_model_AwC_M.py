@@ -202,6 +202,7 @@ if __name__ == "__main__":
             learning_rate=learning_rate,
             scheduler=scheduler,
             loss_function=loss_function,
+            attention_activation=attention_activation,
             weight_decay=weight_decay,
             constraint_loss_weight=constraint_loss_weight,
             constraint_var=constraint_var,
@@ -236,6 +237,36 @@ if __name__ == "__main__":
     # Evaluate the model --------------------------------------------------------------------------------
     ############################################################################################################
 
+    eval_cell_type_order = ['EC', 'Pvalb', 'Sst', 'Vip']
+    GT_strength_connectivity = np.zeros((len(eval_cell_type_order), len(eval_cell_type_order)))
+    GT_strength_connectivity[:] = np.nan
+
+    GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('EC')] = 0.11
+    GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('EC')] = 0.27
+    GT_strength_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('EC')]= 0.1
+    GT_strength_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('EC')] = 0.45
+
+    GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Pvalb')] = -0.44
+    GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Pvalb')] = -0.47
+    GT_strength_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Pvalb')] = -0.44
+    GT_strength_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Pvalb')] = -0.23
+
+    GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Sst')] = -0.16
+    GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Sst')] = -0.18
+    GT_strength_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Sst')] = -0.19
+    GT_strength_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Sst')] = -0.17
+
+    GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Vip')] = -0.06
+    GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Vip')] = -0.10
+    GT_strength_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Vip')] = -0.17
+    GT_strength_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Vip')] = -0.10
+
+    max_abs = np.max(np.abs(GT_strength_connectivity))
+    vmin_KK = -max_abs
+    vmax_KK = max_abs
+
+
+
     model_checkpoint_path = checkpoint_path + "/" + listdir(checkpoint_path)[-1]
 
     train_results = trainer.predict(single_model, dataloaders=[train_dataloader], ckpt_path=model_checkpoint_path)
@@ -263,8 +294,8 @@ if __name__ == "__main__":
         for j in range(num_batch_per_session_TRAIN[i]):
             x_hat = train_results[index][0]
             x = train_results[index][1]
-            attention = train_results[index][2]
-            state = train_results[index][4]
+            attention = train_results[index][2]  # B * neuron_num * neuron_num
+            state = train_results[index][4].cpu().numpy()   # B * window_size
             
             # predictions[i].append(x_hat)
             # ground_truths[i].append(x)
@@ -273,9 +304,10 @@ if __name__ == "__main__":
             # attention_3 = train_results[index][3]
             # attentions_3[i].append(attention_3)
 
-            # check if all values in state are the same and get that value
-            if np.all(state == state[0]):
-                attentions_by_state[i][state[0]].append(attention)
+            # check if all values in state of a sample are the same
+            for k in range(state.shape[0]):
+                if np.all(state[k] == state[k][0]):
+                    attentions_by_state[i][state[k][0]].append(attention[k])
             
             index += 1
 
@@ -283,9 +315,15 @@ if __name__ == "__main__":
         # ground_truths[i] = torch.cat(ground_truths[i], dim=0).cpu().numpy()  # N * neuron_num * window_size
         attentions[i] = torch.cat(attentions[i], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
 
-        attentions_by_state[i][0] = torch.cat(attentions_by_state[i][0], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
-        attentions_by_state[i][1] = torch.cat(attentions_by_state[i][1], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
-        attentions_by_state[i][2] = torch.cat(attentions_by_state[i][2], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+        print('attentions: ', attentions[i].shape)
+
+        attentions_by_state[i][0] = torch.stack(attentions_by_state[i][0], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+        attentions_by_state[i][1] = torch.stack(attentions_by_state[i][1], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+        attentions_by_state[i][2] = torch.stack(attentions_by_state[i][2], dim=0).cpu().numpy()    # N * neuron_num * neuron_num
+
+        print('attentions_by_state 0: ', attentions_by_state[i][0].shape)
+        print('attentions_by_state 1: ', attentions_by_state[i][1].shape)
+        print('attentions_by_state 2: ', attentions_by_state[i][2].shape)
 
         # get average attention across samples in each session
         all_sessions_avg_attention_NN.append(np.mean(attentions[i], axis=0))   # neuron_num * neuron_num
@@ -332,13 +370,15 @@ if __name__ == "__main__":
         all_sessions_new_cell_type_id,
     )
 
-    eval_cell_type_order = ['EC', 'Pvalb', 'Sst', 'Vip']
     eval_KK_strength_0 = tools.experiment_KK_to_eval_KK(experiment_KK_strength_0, cell_type_order, eval_cell_type_order)
     eval_KK_strength_1 = tools.experiment_KK_to_eval_KK(experiment_KK_strength_1, cell_type_order, eval_cell_type_order)
     eval_KK_strength_2 = tools.experiment_KK_to_eval_KK(experiment_KK_strength_2, cell_type_order, eval_cell_type_order)
 
-    plt.imshow(eval_KK_strength_0, cmap='RdBu_r', interpolation="nearest")
-    plt.colorbar()
+    vmin_across_states = min(np.min(eval_KK_strength_0), np.min(eval_KK_strength_1), np.min(eval_KK_strength_2))
+    vmax_across_states = max(np.max(eval_KK_strength_0), np.max(eval_KK_strength_1), np.max(eval_KK_strength_2))
+
+    plt.imshow(eval_KK_strength_0, cmap='RdBu_r', interpolation="nearest", vmin=vmin_across_states, vmax=vmax_across_states)
+    # plt.colorbar()
     plt.xlabel("Pre")
     plt.ylabel("Post")
     plt.title("eval_KK_strength_0")
@@ -347,8 +387,8 @@ if __name__ == "__main__":
     plt.savefig(output_path + "/strength_0.png")
     plt.close()
 
-    plt.imshow(eval_KK_strength_1, cmap='RdBu_r', interpolation="nearest")
-    plt.colorbar()
+    plt.imshow(eval_KK_strength_1, cmap='RdBu_r', interpolation="nearest", vmin=vmin_across_states, vmax=vmax_across_states)
+    # plt.colorbar()
     plt.xlabel("Pre")
     plt.ylabel("Post")
     plt.title("eval_KK_strength_1")
@@ -357,8 +397,8 @@ if __name__ == "__main__":
     plt.savefig(output_path + "/strength_1.png")
     plt.close()
 
-    plt.imshow(eval_KK_strength_2, cmap='RdBu_r', interpolation="nearest")
-    plt.colorbar()
+    plt.imshow(eval_KK_strength_2, cmap='RdBu_r', interpolation="nearest", vmin=vmin_across_states, vmax=vmax_across_states)
+    # plt.colorbar()
     plt.xlabel("Pre")
     plt.ylabel("Post")
     plt.title("eval_KK_strength_2")
@@ -504,52 +544,29 @@ if __name__ == "__main__":
 
 
     # Make the ground truth connectivity matrix ----------------------------------------------------------
-    GT_strength_connectivity = np.zeros((len(eval_cell_type_order), len(eval_cell_type_order)))
-    GT_strength_connectivity[:] = np.nan
-
-    GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('EC')] = 0.11
-    GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('EC')] = 0.27
-    GT_strength_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('EC')]= 0.1
-    GT_strength_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('EC')] = 0.45
-
-    GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Pvalb')] = -0.44
-    GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Pvalb')] = -0.47
-    GT_strength_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Pvalb')] = -0.44
-    GT_strength_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Pvalb')] = -0.23
-
-    GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Sst')] = -0.16
-    GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Sst')] = -0.18
-    GT_strength_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Sst')] = -0.19
-    GT_strength_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Sst')] = -0.17
-
-    GT_strength_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Vip')] = -0.06
-    GT_strength_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Vip')] = -0.10
-    GT_strength_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Vip')] = -0.17
-    GT_strength_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Vip')] = -0.10
-
-    GT_prob_connectivity = np.zeros((len(eval_cell_type_order), len(eval_cell_type_order)))
-    GT_prob_connectivity[:] = np.nan
+    # GT_prob_connectivity = np.zeros((len(eval_cell_type_order), len(eval_cell_type_order)))
+    # GT_prob_connectivity[:] = np.nan
 
     # replace ground truth prob connectivity with GT prob connectivity
-    GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('EC')] = 13/229
-    GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('EC')] = 22/53
-    GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('EC')]= 20/67
-    GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('EC')] = 11/68
+    # GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('EC')] = 13/229
+    # GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('EC')] = 22/53
+    # GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('EC')]= 20/67
+    # GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('EC')] = 11/68
     
-    GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Pvalb')] = 18/52
-    GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Pvalb')] = 45/114
-    GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Pvalb')] = 8/88
-    GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Pvalb')] = 0/54
+    # GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Pvalb')] = 18/52
+    # GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Pvalb')] = 45/114
+    # GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Pvalb')] = 8/88
+    # GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Pvalb')] = 0/54
 
-    GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Sst')] = 13/56
-    GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Sst')] = 15/84
-    GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Sst')] = 8/154
-    GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Sst')] = 25/84
+    # GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Sst')] = 13/56
+    # GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Sst')] = 15/84
+    # GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Sst')] = 8/154
+    # GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Sst')] = 25/84
 
-    GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Vip')] = 3/62
-    GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Vip')] = 1/54
-    GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Vip')] = 12/87
-    GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Vip')] = 2/209
+    # GT_prob_connectivity[eval_cell_type_order.index('EC')][eval_cell_type_order.index('Vip')] = 3/62
+    # GT_prob_connectivity[eval_cell_type_order.index('Pvalb')][eval_cell_type_order.index('Vip')] = 1/54
+    # GT_prob_connectivity[eval_cell_type_order.index('Sst')][eval_cell_type_order.index('Vip')] = 12/87
+    # GT_prob_connectivity[eval_cell_type_order.index('Vip')][eval_cell_type_order.index('Vip')] = 2/209
 
     # get correlation
     corr_strength_KK = stats.pearsonr(GT_strength_connectivity.flatten(), eval_KK_strength.flatten())[0]
@@ -595,7 +612,7 @@ if __name__ == "__main__":
 
     np.save(output_path + "/Estimated_prior_var.npy", eval_prior_KK_var)
 
-    plt.imshow(eval_KK_strength, cmap='RdBu_r', interpolation="nearest")
+    plt.imshow(tools.linear_transform(eval_KK_strength, GT_strength_connectivity), cmap='RdBu_r', interpolation="nearest", vmin=vmin_KK, vmax=vmax_KK)
     plt.colorbar()
     plt.xlabel("Pre")
     plt.ylabel("Post")
@@ -655,15 +672,15 @@ if __name__ == "__main__":
     plt.savefig(output_path + "/GT_strength.png")
     plt.close()
 
-    plt.imshow(GT_prob_connectivity, interpolation="nearest", cmap='bone')
-    plt.colorbar()
-    plt.xlabel("Pre")
-    plt.ylabel("Post")
-    plt.title("Ground truth prob connectivity")
-    plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
-    plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
-    plt.savefig(output_path + "/GT_prob.png")
-    plt.close()
+    # plt.imshow(GT_prob_connectivity, interpolation="nearest", cmap='bone')
+    # plt.colorbar()
+    # plt.xlabel("Pre")
+    # plt.ylabel("Post")
+    # plt.title("Ground truth prob connectivity")
+    # plt.xticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order, rotation=45)
+    # plt.yticks(np.arange(len(eval_cell_type_order)), eval_cell_type_order)
+    # plt.savefig(output_path + "/GT_prob.png")
+    # plt.close()
 
 
     ############## Attention KK 3

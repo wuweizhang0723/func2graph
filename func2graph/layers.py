@@ -264,10 +264,12 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
         *,
         dropout=0.0,
         prediction_mode=False,
+        activation='none', # 'sigmoid' or 'tanh' or 'softmax' or 'none'
         causal_temporal_map='lower_triangle',  # 'off_diagonal', 'lower_triangle'
         diff=20,
     ):
         super().__init__()
+        self.activation = activation
 
         # self.layer_norm = nn.LayerNorm(dim_X + dim_E)
 
@@ -304,7 +306,16 @@ class Causal_Temporal_Map_Attention_2(nn.Module):
         queries = self.query_linear(x_e)
         keys = self.key_linear(x_e)
 
-        attn = einsum("b n d, b m d -> b n m", queries, keys)
+        logits = einsum("b n d, b m d -> b n m", queries, keys)
+        if self.activation == 'softmax':
+            attn = logits.softmax(dim=-1)
+        elif self.activation == 'sigmoid':
+            attn = F.sigmoid(logits)
+        elif self.activation == 'tanh':
+            attn = F.tanh(logits)
+        elif self.activation == 'none':
+            attn = logits
+
         attn = self.attn_dropout(attn)
         attn = attn * self.scale
 
